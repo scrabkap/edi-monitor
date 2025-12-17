@@ -1,0 +1,162 @@
+name: Deploy Frontend Only (No CloudFormation)
+
+on:
+  workflow_dispatch:
+
+env:
+  AWS_REGION: ${{ secrets.AWS_REGION || 'eu-west-1' }}
+
+jobs:
+  deploy-frontend:
+    name: Deploy Frontend to CloudFront
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install and build frontend
+        run: |
+          npm install
+          npm run build || echo "Build failed, using source files"
+
+      - name: Create unique bucket name
+        id: bucket
+        run: |
+          TIMESTAMP=$(date +%s)
+          BUCKET_NAME="edi-monitor-frontend-${TIMESTAMP}"
+          echo "BUCKET_NAME=$BUCKET_NAME" >> $GITHUB_ENV
+          echo "bucket_name=$BUCKET_NAME" >> $GITHUB_OUTPUT
+
+      - name: Create S3 bucket
+        run: |
+          aws s3 mb "s3://${BUCKET_NAME}" --region $AWS_REGION
+
+      - name: Configure S3 for website hosting
+        run: |
+          aws s3 website "s3://${BUCKET_NAME}" \
+            --index-document index.html \
+            --error-document index.html
+
+          aws s3api put-public-access-block \
+            --bucket "${BUCKET_NAME}" \
+            --public-access-block-configuration \
+              "BlockPublicAcls=false,IgnorePublicAcls=false,BlockPublicPolicy=false,RestrictPublicBuckets=false"
+
+          aws s3api put-bucket-policy --bucket "${BUCKET_NAME}" --policy "{
+            \"Version\": \"2012-10-17\",
+            \"Statement\": [{
+              \"Sid\": \"PublicReadGetObject\",
+              \"Effect\": \"Allow\",
+              \"Principal\": \"*\",
+              \"Action\": \"s3:GetObject\",
+              \"Resource\": \"arn:aws:s3:::${BUCKET_NAME}/*\"
+            }]
+          }"
+
+      - name: Upload frontend files
+        run: |
+          DEPLOY_DIR="dist"
+          if [ ! -d "$DEPLOY_DIR" ]; then
+            DEPLOY_DIR="webapp"
+          fi
+          aws s3 sync "$DEPLOY_DIR" "s3://${BUCKET_NAME}/" --region $AWS_REGION
+
+      - name: Create CloudFront distribution
+        id: cloudfront
+        run: |
+          WEBSITE_ENDPOINT="${BUCKET_NAME}.s3-website-${AWS_REGION}.amazonaws.com"
+
+          DISTRIBUTION_ID=$(aws cloudfront create-distribution \
+            --distribution-config "{
+              \"CallerReference\": \"${BUCKET_NAME}\",
+              \"DefaultRootObject\": \"index.html\",
+              \"Comment\": \"EDI Monitor Frontend\",
+              \"Enabled\": true,
+              \"Origins\": {
+                \"Quantity\": 1,
+                \"Items\": [{
+                  \"Id\": \"S3-${BUCKET_NAME}\",
+                  \"DomainName\": \"${WEBSITE_ENDPOINT}\",
+                  \"CustomOriginConfig\": {
+                    \"HTTPPort\": 80,
+                    \"HTTPSPort\": 443,
+                    \"OriginProtocolPolicy\": \"http-only\"
+                  }
+                }]
+              },
+              \"DefaultCacheBehavior\": {
+                \"TargetOriginId\": \"S3-${BUCKET_NAME}\",
+                \"ViewerProtocolPolicy\": \"redirect-to-https\",
+                \"AllowedMethods\": {
+                  \"Quantity\": 3,
+                  \"Items\": [\"GET\", \"HEAD\", \"OPTIONS\"],
+                  \"CachedMethods\": {
+                    \"Quantity\": 2,
+                    \"Items\": [\"GET\", \"HEAD\"]
+                  }
+                },
+                \"ForwardedValues\": {
+                  \"QueryString\": false,
+                  \"Cookies\": {\"Forward\": \"none\"}
+                },
+                \"MinTTL\": 0,
+                \"Compress\": true
+              },
+              \"CustomErrorResponses\": {
+                \"Quantity\": 2,
+                \"Items\": [
+                  {
+                    \"ErrorCode\": 403,
+                    \"ResponsePagePath\": \"/index.html\",
+                    \"ResponseCode\": \"200\",
+                    \"ErrorCachingMinTTL\": 300
+                  },
+                  {
+                    \"ErrorCode\": 404,
+                    \"ResponsePagePath\": \"/index.html\",
+                    \"ResponseCode\": \"200\",
+                    \"ErrorCachingMinTTL\": 300
+                  }
+                ]
+              }
+            }" \
+            --query 'Distribution.Id' \
+            --output text)
+
+          CLOUDFRONT_DOMAIN=$(aws cloudfront get-distribution \
+            --id "$DISTRIBUTION_ID" \
+            --query 'Distribution.DomainName' \
+            --output text)
+
+          echo "distribution_id=$DISTRIBUTION_ID" >> $GITHUB_OUTPUT
+          echo "cloudfront_domain=$CLOUDFRONT_DOMAIN" >> $GITHUB_OUTPUT
+
+      - name: Deployment summary
+        run: |
+          echo "## Frontend Deployment Complete! 🚀" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Region:** $AWS_REGION" >> $GITHUB_STEP_SUMMARY
+          echo "**S3 Bucket:** ${BUCKET_NAME}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### URLs" >> $GITHUB_STEP_SUMMARY
+          echo "- **CloudFront URL:** https://${{ steps.cloudfront.outputs.cloudfront_domain }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **S3 Website:** http://${BUCKET_NAME}.s3-website-${AWS_REGION}.amazonaws.com" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### CloudFront Info" >> $GITHUB_STEP_SUMMARY
+          echo "- **Distribution ID:** ${{ steps.cloudfront.outputs.distribution_id }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Note:** CloudFront deployment takes 10-15 minutes to propagate globally" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Test your app at:** https://${{ steps.cloudfront.outputs.cloudfront_domain }}" >> $GITHUB_STEP_SUMMARY
