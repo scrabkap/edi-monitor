@@ -158,15 +158,10 @@ def get_edi_data(query_params: Dict):
         lfa1_lookup = {normalize_numeric(row.get('EDI Delivery', '')): row for row in lfa1_data if row.get('EDI Delivery', '').strip()}
         makt_lookup = {normalize_numeric(row.get('Material', '')): row for row in makt_data if row.get('Material', '').strip()}
 
-        # Filter headers by errors BEFORE processing (optimization)
+        # Filter headers by date if specified (no error filtering - show all documents)
         filtered_headers = []
 
         for header in edi_header:
-            # Only include records with errors (non-empty error code)
-            error_code = header.get('Error Code', '').strip()
-            if not error_code:
-                continue
-
             # Filter by date if days parameter is provided (days > 0)
             if days > 0:
                 date_str = header.get('DN Processing Date', '').strip()
@@ -238,11 +233,9 @@ def process_edi_documents(headers: List[Dict], items: List[Dict],
         error_code = normalize_numeric(header.get('Error Code', ''))
         doc_number = header.get('Vendor\'s Delivery Number', '').strip()
 
-        # Skip headers that have no items UNLESS it's a general document error (28)
-        # Error code 28 = entire document failed, so it might not have items
-        has_items = doc_number in items_by_doc_number
-        if not has_items and error_code != '28':
-            continue
+        # LEFT JOIN: Show all headers, with or without items
+        # Get items for this delivery (empty list if no items)
+        doc_items = items_by_doc_number.get(doc_number, [])
 
         # Join with master data using normalized keys
         store_data = kna1_lookup.get(edi_store_number, {})
@@ -251,9 +244,6 @@ def process_edi_documents(headers: List[Dict], items: List[Dict],
         # Get store and vendor names
         store_name = store_data.get('Name 1', 'Unknown Store').strip()
         vendor_name = vendor_data.get('Name 1', 'Unknown Vendor').strip()
-
-        # Get items for this delivery (empty list if no items)
-        doc_items = items_by_doc_number.get(doc_number, [])
 
         # Enrich items with material descriptions
         enriched_items = []
@@ -340,19 +330,8 @@ def get_dashboard_data():
         lfa1_lookup = {normalize_numeric(row.get('EDI Delivery', '')): row for row in lfa1_data if row.get('EDI Delivery', '').strip()}
         makt_lookup = {normalize_numeric(row.get('Material', '')): row for row in makt_data if row.get('Material', '').strip()}
 
-        # Filter headers by errors BEFORE processing (no date filter by default)
-        filtered_headers = []
-
-        for header in edi_header:
-            # Only include records with errors (non-empty error code)
-            error_code = header.get('Error Code', '').strip()
-            if not error_code:
-                continue
-
-            filtered_headers.append(header)
-
-        # Process filtered data
-        enriched_data = process_edi_documents(filtered_headers, edi_items, kna1_lookup, lfa1_lookup, makt_lookup)
+        # Process all headers (no filtering - show all documents)
+        enriched_data = process_edi_documents(edi_header, edi_items, kna1_lookup, lfa1_lookup, makt_lookup)
 
         # Calculate statistics
         total_documents = len(enriched_data)
