@@ -72,7 +72,7 @@ Resources:
         DefaultRootObject: index.html
         Origins:
           - Id: S3Origin
-            DomainName: !GetAtt FrontendBucket.DomainName
+            DomainName: !Sub '${FrontendBucket}.s3-website-${AWS::Region}.amazonaws.com'
             CustomOriginConfig:
               HTTPPort: 80
               HTTPSPort: 443
