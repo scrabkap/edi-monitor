@@ -206,7 +206,7 @@ jobs:
       - name: Update frontend configuration
         run: |
           API_ENDPOINT="${{ steps.stack-outputs.outputs.api_endpoint }}"
-          sed -i "s|https://your-api-id.execute-api.region.amazonaws.com/dev|${API_ENDPOINT}|g" webapp/Component.js
+          sed -i "s|https://your-api-id.execute-api.eu-west-1.amazonaws.com/dev|${API_ENDPOINT}|g" webapp/Component.js
 
       - name: Deploy frontend to S3
         run: |
