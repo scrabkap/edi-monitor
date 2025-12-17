@@ -1,0 +1,24 @@
+{
+  "name": "edi-monitor",
+  "version": "1.0.0",
+  "description": "EDI Monitor Application with OpenUI5",
+  "scripts": {
+    "start": "ui5 serve --port 8080",
+    "build": "ui5 build --all",
+    "deploy": "./deploy.sh",
+    "package-lambda": "cd backend && zip -r ../lambda-function.zip . && cd ..",
+    "lint": "eslint webapp/"
+  },
+  "keywords": [
+    "openui5",
+    "edi",
+    "monitoring"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@ui5/cli": "^3.0.0",
+    "eslint": "^8.0.0"
+  },
+  "dependencies": {}
+}

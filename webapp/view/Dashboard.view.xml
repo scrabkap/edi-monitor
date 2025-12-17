@@ -1,0 +1,156 @@
+<mvc:View
+    controllerName="edi.monitor.controller.Dashboard"
+    xmlns:mvc="sap.ui.core.mvc"
+    xmlns="sap.m"
+    xmlns:core="sap.ui.core"
+    xmlns:layout="sap.ui.layout"
+    displayBlock="true">
+    <Page
+        id="dashboardPage"
+        title="{i18n>dashboardTitle}"
+        showNavButton="false">
+        <content>
+            <VBox class="sapUiSmallMargin">
+                <!-- Header Section -->
+                <layout:VerticalLayout class="sapUiMediumMarginBottom">
+                    <Title text="{i18n>overviewTitle}" level="H2" class="sapUiSmallMarginBottom"/>
+                    <Text text="{i18n>overviewDescription}" class="sapUiSmallMarginBottom"/>
+                </layout:VerticalLayout>
+
+                <!-- KPI Tiles -->
+                <layout:HorizontalLayout class="sapUiMediumMarginBottom" allowWrapping="true">
+                    <!-- Total Documents -->
+                    <GenericTile
+                        class="sapUiTinyMarginEnd sapUiTinyMarginBottom"
+                        header="{i18n>totalDocuments}"
+                        press="onNavigateToList">
+                        <TileContent>
+                            <NumericContent
+                                value="{dashboard>/total_documents}"
+                                icon="sap-icon://document"
+                                valueColor="Neutral"/>
+                        </TileContent>
+                    </GenericTile>
+
+                    <!-- Error Documents -->
+                    <GenericTile
+                        class="sapUiTinyMarginEnd sapUiTinyMarginBottom"
+                        header="{i18n>errorDocuments}"
+                        press="onShowErrors">
+                        <TileContent>
+                            <NumericContent
+                                value="{dashboard>/error_documents}"
+                                icon="sap-icon://error"
+                                valueColor="Error"/>
+                        </TileContent>
+                    </GenericTile>
+
+                    <!-- Warning Documents -->
+                    <GenericTile
+                        class="sapUiTinyMarginEnd sapUiTinyMarginBottom"
+                        header="{i18n>warningDocuments}"
+                        press="onShowWarnings">
+                        <TileContent>
+                            <NumericContent
+                                value="{dashboard>/warning_documents}"
+                                icon="sap-icon://alert"
+                                valueColor="Critical"/>
+                        </TileContent>
+                    </GenericTile>
+
+                    <!-- Success Documents -->
+                    <GenericTile
+                        class="sapUiTinyMarginEnd sapUiTinyMarginBottom"
+                        header="{i18n>successDocuments}">
+                        <TileContent>
+                            <NumericContent
+                                value="{dashboard>/success_documents}"
+                                icon="sap-icon://accept"
+                                valueColor="Good"/>
+                        </TileContent>
+                    </GenericTile>
+
+                    <!-- Error Rate -->
+                    <GenericTile
+                        class="sapUiTinyMarginEnd sapUiTinyMarginBottom"
+                        header="{i18n>errorRate}">
+                        <TileContent>
+                            <NumericContent
+                                value="{dashboard>/error_rate}"
+                                scale="%"
+                                valueColor="{= ${dashboard>/error_rate} > 10 ? 'Error' : ${dashboard>/error_rate} > 5 ? 'Critical' : 'Good'}"/>
+                        </TileContent>
+                    </GenericTile>
+                </layout:HorizontalLayout>
+
+                <!-- Recent Errors Section -->
+                <Panel
+                    headerText="{i18n>recentErrorsTitle}"
+                    class="sapUiResponsiveMargin"
+                    width="auto">
+                    <content>
+                        <Table
+                            id="recentErrorsTable"
+                            items="{dashboard>/recent_errors}"
+                            growing="true"
+                            growingThreshold="10"
+                            mode="SingleSelectMaster"
+                            selectionChange="onErrorSelect">
+                            <columns>
+                                <Column width="12em">
+                                    <Text text="{i18n>documentNumber}"/>
+                                </Column>
+                                <Column minScreenWidth="Tablet" demandPopin="true">
+                                    <Text text="{i18n>storeName}"/>
+                                </Column>
+                                <Column minScreenWidth="Tablet" demandPopin="true">
+                                    <Text text="{i18n>vendorName}"/>
+                                </Column>
+                                <Column width="8em">
+                                    <Text text="{i18n>severity}"/>
+                                </Column>
+                                <Column minScreenWidth="Desktop" demandPopin="true">
+                                    <Text text="{i18n>errorDescription}"/>
+                                </Column>
+                                <Column width="10em">
+                                    <Text text="{i18n>errorCount}"/>
+                                </Column>
+                            </columns>
+                            <items>
+                                <ColumnListItem type="Active">
+                                    <cells>
+                                        <ObjectIdentifier
+                                            title="{dashboard>document_number}"/>
+                                        <Text text="{dashboard>store_name}"/>
+                                        <Text text="{dashboard>vendor_name}"/>
+                                        <ObjectStatus
+                                            text="{dashboard>severity}"
+                                            state="{= ${dashboard>severity} === 'Error' ? 'Error' : 'Warning'}"/>
+                                        <Text text="{dashboard>error_info/description}"/>
+                                        <ObjectNumber
+                                            number="{dashboard>error_count}"
+                                            unit="{i18n>items}"/>
+                                    </cells>
+                                </ColumnListItem>
+                            </items>
+                        </Table>
+                    </content>
+                </Panel>
+
+                <!-- Action Buttons -->
+                <Toolbar>
+                    <ToolbarSpacer/>
+                    <Button
+                        text="{i18n>viewAllDocuments}"
+                        icon="sap-icon://list"
+                        type="Emphasized"
+                        press="onNavigateToList"/>
+                    <Button
+                        text="{i18n>refresh}"
+                        icon="sap-icon://refresh"
+                        press="onRefresh"/>
+                </Toolbar>
+            </VBox>
+        </content>
+    </Page>
+</mvc:View>

@@ -1,0 +1,138 @@
+<mvc:View
+    controllerName="edi.monitor.controller.EDIDetail"
+    xmlns:mvc="sap.ui.core.mvc"
+    xmlns="sap.m"
+    xmlns:core="sap.ui.core"
+    xmlns:layout="sap.ui.layout"
+    xmlns:form="sap.ui.layout.form"
+    displayBlock="true">
+    <Page
+        id="ediDetailPage"
+        title="{i18n>ediDetailTitle}"
+        showNavButton="true"
+        navButtonPress="onNavBack">
+        <content>
+            <VBox class="sapUiSmallMargin">
+                <!-- Header Information -->
+                <Panel
+                    headerText="{i18n>documentInformation}"
+                    class="sapUiResponsiveMargin"
+                    expandable="false">
+                    <content>
+                        <form:SimpleForm
+                            editable="false"
+                            layout="ResponsiveGridLayout"
+                            labelSpanXL="3"
+                            labelSpanL="3"
+                            labelSpanM="3"
+                            labelSpanS="12"
+                            adjustLabelSpan="false"
+                            emptySpanXL="4"
+                            emptySpanL="4"
+                            emptySpanM="4"
+                            emptySpanS="0"
+                            columnsXL="1"
+                            columnsL="1"
+                            columnsM="1"
+                            singleContainerFullSize="false">
+                            <form:content>
+                                <Label text="{i18n>documentNumber}"/>
+                                <Text text="{detail>/document_number}"/>
+
+                                <Label text="{i18n>storeName}"/>
+                                <Text text="{detail>/store_name}"/>
+
+                                <Label text="{i18n>ediStoreNumber}"/>
+                                <Text text="{detail>/edi_store_number}"/>
+
+                                <Label text="{i18n>vendorName}"/>
+                                <Text text="{detail>/vendor_name}"/>
+
+                                <Label text="{i18n>ediDelivery}"/>
+                                <Text text="{detail>/edi_delivery}"/>
+
+                                <Label text="{i18n>severity}"/>
+                                <ObjectStatus
+                                    text="{detail>/severity}"
+                                    state="{= ${detail>/severity} === 'Error' ? 'Error' : ${detail>/severity} === 'Warning' ? 'Warning' : 'Success'}"
+                                    icon="{= ${detail>/severity} === 'Error' ? 'sap-icon://error' : ${detail>/severity} === 'Warning' ? 'sap-icon://alert' : 'sap-icon://accept'}"/>
+
+                                <Label text="{i18n>errorDescription}" visible="{= !!${detail>/error_info}}"/>
+                                <Text text="{detail>/error_info/description}" visible="{= !!${detail>/error_info}}"/>
+
+                                <Label text="{i18n>timestamp}"/>
+                                <Text text="{detail>/timestamp}"/>
+                            </form:content>
+                        </form:SimpleForm>
+                    </content>
+                </Panel>
+
+                <!-- Items Section -->
+                <Panel
+                    headerText="{i18n>items} ({detail>/item_count})"
+                    class="sapUiResponsiveMargin"
+                    expandable="true"
+                    expanded="true">
+                    <content>
+                        <Table
+                            id="itemsTable"
+                            items="{detail>/items}"
+                            growing="true"
+                            growingThreshold="20">
+                            <columns>
+                                <Column width="12em">
+                                    <Text text="{i18n>barcode}"/>
+                                </Column>
+                                <Column minScreenWidth="Tablet" demandPopin="true">
+                                    <Text text="{i18n>materialDescription}"/>
+                                </Column>
+                                <Column width="8em" hAlign="End">
+                                    <Text text="{i18n>quantity}"/>
+                                </Column>
+                                <Column width="8em" hAlign="Center">
+                                    <Text text="{i18n>errorCode}"/>
+                                </Column>
+                                <Column minScreenWidth="Desktop" demandPopin="true">
+                                    <Text text="{i18n>errorDescription}"/>
+                                </Column>
+                                <Column width="8em" hAlign="Center">
+                                    <Text text="{i18n>status}"/>
+                                </Column>
+                            </columns>
+                            <items>
+                                <ColumnListItem>
+                                    <cells>
+                                        <Text text="{detail>barcode}"/>
+                                        <Text text="{detail>material_description}"/>
+                                        <ObjectNumber number="{detail>quantity}"/>
+                                        <Text text="{detail>error_code}"/>
+                                        <Text
+                                            text="{detail>error_info/description}"
+                                            visible="{= !!${detail>error_info}}"/>
+                                        <ObjectStatus
+                                            text="{= ${detail>error_code} ? (${detail>error_code} === '104' ? 'Error' : 'Warning') : 'OK'}"
+                                            state="{= ${detail>error_code} ? (${detail>error_code} === '104' ? 'Error' : 'Warning') : 'Success'}"
+                                            icon="{= ${detail>error_code} ? (${detail>error_code} === '104' ? 'sap-icon://error' : 'sap-icon://alert') : 'sap-icon://accept'}"/>
+                                    </cells>
+                                </ColumnListItem>
+                            </items>
+                        </Table>
+                    </content>
+                </Panel>
+
+                <!-- Action Footer -->
+                <Toolbar>
+                    <ToolbarSpacer/>
+                    <Button
+                        text="{i18n>backToList}"
+                        icon="sap-icon://list"
+                        press="onNavBack"/>
+                    <Button
+                        text="{i18n>refresh}"
+                        icon="sap-icon://refresh"
+                        press="onRefresh"/>
+                </Toolbar>
+            </VBox>
+        </content>
+    </Page>
+</mvc:View>

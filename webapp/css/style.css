@@ -1,0 +1,53 @@
+/* EDI Monitor Custom Styles */
+
+/* Apply consistent spacing */
+.sapUiResponsiveMargin {
+    margin: 1rem !important;
+}
+
+/* KPI Tiles styling */
+.sapMGT {
+    width: 15rem;
+    height: 10rem;
+}
+
+/* Table row highlighting based on severity */
+.ediMonitorTableRow[data-severity="Error"] {
+    background-color: #ffeef0;
+}
+
+.ediMonitorTableRow[data-severity="Warning"] {
+    background-color: #fff8e6;
+}
+
+/* Responsive adjustments */
+@media (max-width: 600px) {
+    .sapMGT {
+        width: 100%;
+        margin-bottom: 0.5rem;
+    }
+}
+
+/* Loading indicator */
+.ediMonitorLoading {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 400px;
+}
+
+/* Error state styling */
+.ediMonitorError {
+    padding: 2rem;
+    text-align: center;
+}
+
+/* Custom panel header colors */
+.sapMPanelHdr {
+    background-color: #f7f7f7;
+}
+
+/* Hebrew text support */
+[dir="rtl"] .ediMonitorContent {
+    text-align: right;
+}

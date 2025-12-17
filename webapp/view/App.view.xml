@@ -1,0 +1,13 @@
+<mvc:View
+    controllerName="edi.monitor.controller.App"
+    xmlns:mvc="sap.ui.core.mvc"
+    displayBlock="true"
+    xmlns="sap.m">
+    <Shell id="shell">
+        <App id="app">
+            <pages>
+                <!-- Pages will be added dynamically by routing -->
+            </pages>
+        </App>
+    </Shell>
+</mvc:View>

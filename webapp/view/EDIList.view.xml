@@ -1,0 +1,122 @@
+<mvc:View
+    controllerName="edi.monitor.controller.EDIList"
+    xmlns:mvc="sap.ui.core.mvc"
+    xmlns="sap.m"
+    xmlns:core="sap.ui.core"
+    displayBlock="true">
+    <Page
+        id="ediListPage"
+        title="{i18n>ediListTitle}"
+        showNavButton="true"
+        navButtonPress="onNavBack">
+        <content>
+            <VBox class="sapUiSmallMargin">
+                <!-- Search and Filter Bar -->
+                <Toolbar>
+                    <SearchField
+                        id="searchField"
+                        width="50%"
+                        placeholder="{i18n>searchPlaceholder}"
+                        search="onSearch"/>
+                    <ToolbarSpacer/>
+                    <SegmentedButton
+                        id="severityFilter"
+                        selectedKey="{view>/severityFilter}"
+                        selectionChange="onFilterChange">
+                        <items>
+                            <SegmentedButtonItem key="" text="{i18n>all}"/>
+                            <SegmentedButtonItem key="Error" text="{i18n>errors}" icon="sap-icon://error"/>
+                            <SegmentedButtonItem key="Warning" text="{i18n>warnings}" icon="sap-icon://alert"/>
+                            <SegmentedButtonItem key="Success" text="{i18n>success}" icon="sap-icon://accept"/>
+                        </items>
+                    </SegmentedButton>
+                    <Button
+                        icon="sap-icon://refresh"
+                        press="onRefresh"
+                        tooltip="{i18n>refresh}"/>
+                </Toolbar>
+
+                <!-- EDI Documents Table -->
+                <Table
+                    id="ediTable"
+                    items="{
+                        path: 'edi>/data',
+                        sorter: {
+                            path: 'severity',
+                            descending: true
+                        }
+                    }"
+                    growing="true"
+                    growingThreshold="20"
+                    mode="SingleSelectMaster"
+                    selectionChange="onDocumentSelect"
+                    updateFinished="onUpdateFinished">
+                    <headerToolbar>
+                        <OverflowToolbar>
+                            <Title text="{i18n>documents} ({edi>/count})"/>
+                            <ToolbarSpacer/>
+                            <Button
+                                icon="sap-icon://excel-attachment"
+                                text="{i18n>export}"
+                                press="onExport"/>
+                        </OverflowToolbar>
+                    </headerToolbar>
+                    <columns>
+                        <Column width="12em">
+                            <Text text="{i18n>documentNumber}"/>
+                        </Column>
+                        <Column minScreenWidth="Tablet" demandPopin="true">
+                            <Text text="{i18n>storeName}"/>
+                        </Column>
+                        <Column minScreenWidth="Tablet" demandPopin="true">
+                            <Text text="{i18n>vendorName}"/>
+                        </Column>
+                        <Column minScreenWidth="Desktop" demandPopin="true" hAlign="Center">
+                            <Text text="{i18n>ediStoreNumber}"/>
+                        </Column>
+                        <Column minScreenWidth="Desktop" demandPopin="true" hAlign="Center">
+                            <Text text="{i18n>ediDelivery}"/>
+                        </Column>
+                        <Column width="8em" hAlign="Center">
+                            <Text text="{i18n>severity}"/>
+                        </Column>
+                        <Column minScreenWidth="Tablet" demandPopin="true">
+                            <Text text="{i18n>errorDescription}"/>
+                        </Column>
+                        <Column width="8em" hAlign="End">
+                            <Text text="{i18n>itemCount}"/>
+                        </Column>
+                        <Column width="8em" hAlign="End">
+                            <Text text="{i18n>errorCount}"/>
+                        </Column>
+                    </columns>
+                    <items>
+                        <ColumnListItem type="Active">
+                            <cells>
+                                <ObjectIdentifier
+                                    title="{edi>document_number}"
+                                    text="{edi>timestamp}"/>
+                                <Text text="{edi>store_name}"/>
+                                <Text text="{edi>vendor_name}"/>
+                                <Text text="{edi>edi_store_number}"/>
+                                <Text text="{edi>edi_delivery}"/>
+                                <ObjectStatus
+                                    text="{edi>severity}"
+                                    state="{= ${edi>severity} === 'Error' ? 'Error' : ${edi>severity} === 'Warning' ? 'Warning' : 'Success'}"
+                                    icon="{= ${edi>severity} === 'Error' ? 'sap-icon://error' : ${edi>severity} === 'Warning' ? 'sap-icon://alert' : 'sap-icon://accept'}"/>
+                                <Text
+                                    text="{edi>error_info/description}"
+                                    visible="{= !!${edi>error_info}}"/>
+                                <ObjectNumber
+                                    number="{edi>item_count}"/>
+                                <ObjectNumber
+                                    number="{edi>error_count}"
+                                    state="{= ${edi>error_count} > 0 ? 'Error' : 'None'}"/>
+                            </cells>
+                        </ColumnListItem>
+                    </items>
+                </Table>
+            </VBox>
+        </content>
+    </Page>
+</mvc:View>
