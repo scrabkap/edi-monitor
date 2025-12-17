@@ -294,11 +294,11 @@ def process_edi_documents(headers: List[Dict], items: List[Dict],
 
         # Calculate error count correctly:
         # - If header error code 28 (general document error): count all items
-        # - Otherwise: count only items with error codes (104, 114, etc.)
+        # - Otherwise: count ONLY items with ERROR code 104, NOT warnings (114)
         if error_code == '28':
             error_count = len(enriched_items)  # General document error - all items affected
         else:
-            error_count = sum(1 for item in enriched_items if item['error_code'])  # Count only items with errors
+            error_count = sum(1 for item in enriched_items if item['error_code'] == '104')  # Count only ERROR code 104
 
         doc_data = {
             'document_number': doc_number,
