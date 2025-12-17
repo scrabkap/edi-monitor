@@ -49,14 +49,6 @@ jobs:
         with:
           node-version: '18'
 
-      - name: Install frontend dependencies
-        run: |
-          npm install
-
-      - name: Build frontend
-        run: |
-          npm run build || echo "Build failed, will deploy source files"
-
       - name: Check and fix stuck stack
         run: |
           # Check if stack exists and its status
@@ -206,7 +198,18 @@ jobs:
       - name: Update frontend configuration
         run: |
           API_ENDPOINT="${{ steps.stack-outputs.outputs.api_endpoint }}"
+          echo "Replacing API endpoint with: $API_ENDPOINT"
           sed -i "s|https://your-api-id.execute-api.eu-west-1.amazonaws.com/dev|${API_ENDPOINT}|g" webapp/Component.js
+          echo "Verification - checking Component.js:"
+          grep -A 2 "_getAPIEndpoint" webapp/Component.js || true
+
+      - name: Install frontend dependencies
+        run: |
+          npm install
+
+      - name: Build frontend
+        run: |
+          npm run build || echo "Build failed, will deploy source files"
 
       - name: Deploy frontend to S3
         run: |
