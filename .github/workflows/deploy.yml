@@ -112,7 +112,33 @@ jobs:
           LAMBDA_BUCKET="${STACK_NAME}-lambda-${AWS_REGION}"
           aws s3 cp lambda-function.zip "s3://$LAMBDA_BUCKET/lambda-function.zip"
 
+      - name: Check if stack exists
+        id: check-stack
+        run: |
+          STACK_STATUS=$(aws cloudformation describe-stacks \
+            --stack-name "$STACK_NAME" \
+            --region "$AWS_REGION" \
+            --query 'Stacks[0].StackStatus' \
+            --output text 2>/dev/null || echo "DOES_NOT_EXIST")
+
+          if [[ "$STACK_STATUS" == "CREATE_COMPLETE" ]] || [[ "$STACK_STATUS" == "UPDATE_COMPLETE" ]]; then
+            echo "Stack exists and is healthy - will skip CloudFormation deployment"
+            echo "skip_cf=true" >> $GITHUB_OUTPUT
+
+            # Get existing bucket name from stack
+            EXISTING_BUCKET=$(aws cloudformation describe-stack-resources \
+              --stack-name "$STACK_NAME" \
+              --region "$AWS_REGION" \
+              --query "StackResources[?LogicalResourceId=='EDIDataBucket'].PhysicalResourceId" \
+              --output text)
+            echo "DEPLOYED_BUCKET=$EXISTING_BUCKET" >> $GITHUB_ENV
+          else
+            echo "Stack doesn't exist or is unhealthy - will deploy CloudFormation"
+            echo "skip_cf=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Deploy CloudFormation stack
+        if: steps.check-stack.outputs.skip_cf == 'false'
         id: cf-deploy
         run: |
           # Use the unique bucket name we generated
@@ -192,8 +218,11 @@ jobs:
 
       - name: Deployment summary
         run: |
+          DEPLOYMENT_TYPE="${{ steps.check-stack.outputs.skip_cf == 'true' && 'Fast Update (no CloudFormation)' || 'Full Deployment (with CloudFormation)' }}"
+
           echo "## Deployment Complete! :rocket:" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Deployment Type:** $DEPLOYMENT_TYPE" >> $GITHUB_STEP_SUMMARY
           echo "**Environment:** ${{ github.event.inputs.environment || 'dev' }}" >> $GITHUB_STEP_SUMMARY
           echo "**Stack Name:** $STACK_NAME" >> $GITHUB_STEP_SUMMARY
           echo "**Region:** $AWS_REGION" >> $GITHUB_STEP_SUMMARY
@@ -210,6 +239,10 @@ jobs:
           echo "3. Test the application at the CloudFront URL above" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Important:** Save \`$DEPLOYED_BUCKET\` for future reference" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [[ "${{ steps.check-stack.outputs.skip_cf }}" == "true" ]]; then
+            echo "⚡ **Fast update completed in ~1 minute** (CloudFormation skipped)" >> $GITHUB_STEP_SUMMARY
+          fi
 
       - name: Cleanup
         if: always()
