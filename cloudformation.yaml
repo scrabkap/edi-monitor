@@ -72,9 +72,7 @@ Resources:
         DefaultRootObject: index.html
         Origins:
           - Id: S3Origin
-            DomainName: !GetAtt FrontendBucket.RegionalDomainName
-            S3OriginConfig:
-              OriginAccessIdentity: ''
+            DomainName: !GetAtt FrontendBucket.DomainName
             CustomOriginConfig:
               HTTPPort: 80
               HTTPSPort: 443
