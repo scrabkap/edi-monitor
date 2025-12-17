@@ -108,6 +108,33 @@ jobs:
           LAMBDA_BUCKET="${STACK_NAME}-lambda-${AWS_REGION}"
           aws s3 cp lambda-function.zip "s3://$LAMBDA_BUCKET/lambda-function.zip"
 
+      - name: Update Lambda function code directly
+        run: |
+          # Get Lambda function name from CloudFormation stack
+          LAMBDA_FUNCTION_NAME=$(aws cloudformation describe-stack-resources \
+            --stack-name "$STACK_NAME" \
+            --region "$AWS_REGION" \
+            --query "StackResources[?ResourceType=='AWS::Lambda::Function'].PhysicalResourceId" \
+            --output text 2>/dev/null || echo "")
+
+          if [ -n "$LAMBDA_FUNCTION_NAME" ]; then
+            echo "Updating Lambda function: $LAMBDA_FUNCTION_NAME"
+            aws lambda update-function-code \
+              --function-name "$LAMBDA_FUNCTION_NAME" \
+              --s3-bucket "${STACK_NAME}-lambda-${AWS_REGION}" \
+              --s3-key lambda-function.zip \
+              --region "$AWS_REGION"
+
+            # Wait for update to complete
+            aws lambda wait function-updated \
+              --function-name "$LAMBDA_FUNCTION_NAME" \
+              --region "$AWS_REGION"
+
+            echo "✓ Lambda function updated successfully"
+          else
+            echo "Lambda function not found - will be created by CloudFormation"
+          fi
+
       - name: Check if stack exists and wait if updating
         id: check-stack
         run: |
