@@ -238,8 +238,10 @@ def process_edi_documents(headers: List[Dict], items: List[Dict],
         error_code = normalize_numeric(header.get('Error Code', ''))
         doc_number = header.get('Vendor\'s Delivery Number', '').strip()
 
-        # Skip headers that have no items (INNER JOIN)
-        if doc_number not in items_by_doc_number:
+        # Skip headers that have no items UNLESS it's a general document error (28)
+        # Error code 28 = entire document failed, so it might not have items
+        has_items = doc_number in items_by_doc_number
+        if not has_items and error_code != '28':
             continue
 
         # Join with master data using normalized keys
@@ -250,7 +252,7 @@ def process_edi_documents(headers: List[Dict], items: List[Dict],
         store_name = store_data.get('Name 1', 'Unknown Store').strip()
         vendor_name = vendor_data.get('Name 1', 'Unknown Vendor').strip()
 
-        # Get items for this delivery
+        # Get items for this delivery (empty list if no items)
         doc_items = items_by_doc_number.get(doc_number, [])
 
         # Enrich items with material descriptions
