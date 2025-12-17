@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'EDI Monitor Application Infrastructure'
+Description: 'EDI Monitor Application Infrastructure - Updated Lambda handler'
 
 Parameters:
   EnvironmentName:
