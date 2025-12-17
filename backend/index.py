@@ -3,7 +3,7 @@ import boto3
 import os
 import csv
 from io import StringIO
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 
 s3_client = boto3.client('s3')
@@ -128,6 +128,12 @@ def get_master_data():
 def get_edi_data(query_params: Dict):
     """Process and return EDI data with enriched information"""
     try:
+        # Parse pagination and filter parameters
+        limit = int(query_params.get('limit', 100))
+        offset = int(query_params.get('offset', 0))
+        days = int(query_params.get('days', 7))  # Default: last 7 days
+        severity_filter = query_params.get('severity')  # Optional severity filter
+
         # Load EDI data
         edi_header = read_csv_from_s3('edi-mockdata/YLO_SNXT_EDI_H.csv')
         edi_items = read_csv_from_s3('edi-mockdata/YLO_SNXT_EDI_I.csv')
@@ -142,21 +148,53 @@ def get_edi_data(query_params: Dict):
         lfa1_lookup = {row.get('EDI Delivery', '').strip(): row for row in lfa1_data if row.get('EDI Delivery', '').strip()}
         makt_lookup = {row.get('Material', '').strip(): row for row in makt_data if row.get('Material', '').strip()}
 
-        # Process EDI data
-        enriched_data = process_edi_documents(edi_header, edi_items, kna1_lookup, lfa1_lookup, makt_lookup)
+        # Filter headers by date and errors BEFORE processing (optimization)
+        cutoff_date = datetime.now() - timedelta(days=days)
+        filtered_headers = []
 
-        # Apply filters
-        severity_filter = query_params.get('severity')
+        for header in edi_header:
+            # Only include records with errors (non-empty error code)
+            error_code = header.get('Error Code', '').strip()
+            if not error_code:
+                continue
+
+            # Filter by date if DN Processing Date exists
+            date_str = header.get('DN Processing Date', '').strip()
+            if date_str:
+                try:
+                    # Try parsing date (adjust format as needed)
+                    record_date = datetime.strptime(date_str, '%Y%m%d')
+                    if record_date < cutoff_date:
+                        continue
+                except:
+                    pass  # Include if date parsing fails
+
+            filtered_headers.append(header)
+
+        # Process only filtered EDI data
+        enriched_data = process_edi_documents(filtered_headers, edi_items, kna1_lookup, lfa1_lookup, makt_lookup)
+
+        # Apply severity filter if specified
         if severity_filter:
             enriched_data = [doc for doc in enriched_data if doc.get('severity') == severity_filter]
+
+        # Get total count before pagination
+        total_count = len(enriched_data)
+
+        # Apply pagination
+        paginated_data = enriched_data[offset:offset + limit]
 
         return {
             'statusCode': 200,
             'headers': get_cors_headers(),
             'body': json.dumps({
-                'data': enriched_data,
+                'data': paginated_data,
                 'timestamp': datetime.now().isoformat(),
-                'count': len(enriched_data)
+                'count': len(paginated_data),
+                'total_count': total_count,
+                'offset': offset,
+                'limit': limit,
+                'has_more': (offset + limit) < total_count
             }, ensure_ascii=False)
         }
     except Exception as e:
