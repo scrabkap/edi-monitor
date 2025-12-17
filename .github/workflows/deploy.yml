@@ -199,17 +199,20 @@ jobs:
           echo "frontend_bucket=$FRONTEND_BUCKET" >> $GITHUB_OUTPUT
           echo "frontend_url=$FRONTEND_URL" >> $GITHUB_OUTPUT
 
+      - name: Build frontend
+        run: |
+          npm run build || echo "Build failed, will deploy source files"
+
       - name: Update frontend configuration
         run: |
           API_ENDPOINT="${{ steps.stack-outputs.outputs.api_endpoint }}"
           echo "Replacing API endpoint with: $API_ENDPOINT"
-          sed -i "s|https://your-api-id.execute-api.eu-west-1.amazonaws.com/dev|${API_ENDPOINT}|g" webapp/Component.js
-          echo "Verification - checking Component.js:"
-          grep -A 2 "_getAPIEndpoint" webapp/Component.js || true
 
-      - name: Build frontend
-        run: |
-          npm run build || echo "Build failed, will deploy source files"
+          # Replace in ALL Component files (source and built)
+          find . -name "Component*.js" -type f -exec sed -i "s|https://your-api-id.execute-api.eu-west-1.amazonaws.com/dev|${API_ENDPOINT}|g" {} \;
+
+          echo "Verification - checking all Component files:"
+          find dist -name "Component*.js" -type f -exec grep -l "execute-api" {} \; || echo "All files updated"
 
       - name: Deploy frontend to S3
         run: |
@@ -221,6 +224,7 @@ jobs:
           aws s3 sync "$DEPLOY_DIR" "s3://${{ steps.stack-outputs.outputs.frontend_bucket }}" \
             --delete \
             --region "$AWS_REGION" \
+            --size-only \
             --cache-control "max-age=3600"
 
       - name: Invalidate CloudFront cache
