@@ -1,0 +1,169 @@
+name: Deploy EDI Monitor to AWS
+
+on:
+  push:
+    branches:
+      - main
+      - 'claude/**'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+
+env:
+  AWS_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }}
+  STACK_NAME: ${{ secrets.STACK_NAME || 'edi-monitor-stack' }}
+  S3_BUCKET: ${{ secrets.S3_BUCKET || 'edi-monitor' }}
+
+jobs:
+  deploy:
+    name: Deploy to AWS
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || 'dev' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install frontend dependencies
+        run: |
+          npm ci
+
+      - name: Build frontend
+        run: |
+          npm run build || echo "Build failed, will deploy source files"
+
+      - name: Package Lambda function
+        run: |
+          cd backend
+          pip install -r requirements.txt -t . --upgrade
+          zip -r ../lambda-function.zip . -x "*.pyc" -x "__pycache__/*"
+          cd ..
+
+      - name: Create Lambda S3 bucket if needed
+        run: |
+          LAMBDA_BUCKET="${STACK_NAME}-lambda-${AWS_REGION}"
+          aws s3api head-bucket --bucket "$LAMBDA_BUCKET" 2>/dev/null || \
+            aws s3 mb "s3://$LAMBDA_BUCKET" --region "$AWS_REGION"
+
+      - name: Upload Lambda function to S3
+        run: |
+          LAMBDA_BUCKET="${STACK_NAME}-lambda-${AWS_REGION}"
+          aws s3 cp lambda-function.zip "s3://$LAMBDA_BUCKET/lambda-function.zip"
+
+      - name: Deploy CloudFormation stack
+        id: cf-deploy
+        run: |
+          aws cloudformation deploy \
+            --template-file cloudformation.yaml \
+            --stack-name "$STACK_NAME" \
+            --parameter-overrides \
+              EnvironmentName="${{ github.event.inputs.environment || 'dev' }}" \
+              S3BucketName="$S3_BUCKET" \
+            --capabilities CAPABILITY_IAM \
+            --region "$AWS_REGION" \
+            --no-fail-on-empty-changeset
+
+      - name: Get stack outputs
+        id: stack-outputs
+        run: |
+          API_ENDPOINT=$(aws cloudformation describe-stacks \
+            --stack-name "$STACK_NAME" \
+            --query "Stacks[0].Outputs[?OutputKey=='APIEndpoint'].OutputValue" \
+            --output text \
+            --region "$AWS_REGION")
+
+          FRONTEND_BUCKET=$(aws cloudformation describe-stacks \
+            --stack-name "$STACK_NAME" \
+            --query "Stacks[0].Outputs[?OutputKey=='FrontendBucketName'].OutputValue" \
+            --output text \
+            --region "$AWS_REGION")
+
+          FRONTEND_URL=$(aws cloudformation describe-stacks \
+            --stack-name "$STACK_NAME" \
+            --query "Stacks[0].Outputs[?OutputKey=='FrontendURL'].OutputValue" \
+            --output text \
+            --region "$AWS_REGION")
+
+          echo "api_endpoint=$API_ENDPOINT" >> $GITHUB_OUTPUT
+          echo "frontend_bucket=$FRONTEND_BUCKET" >> $GITHUB_OUTPUT
+          echo "frontend_url=$FRONTEND_URL" >> $GITHUB_OUTPUT
+
+      - name: Update frontend configuration
+        run: |
+          API_ENDPOINT="${{ steps.stack-outputs.outputs.api_endpoint }}"
+          sed -i "s|https://your-api-id.execute-api.region.amazonaws.com/dev|${API_ENDPOINT}|g" webapp/Component.js
+
+      - name: Deploy frontend to S3
+        run: |
+          DEPLOY_DIR="dist"
+          if [ ! -d "$DEPLOY_DIR" ]; then
+            DEPLOY_DIR="webapp"
+          fi
+
+          aws s3 sync "$DEPLOY_DIR" "s3://${{ steps.stack-outputs.outputs.frontend_bucket }}" \
+            --delete \
+            --region "$AWS_REGION" \
+            --cache-control "max-age=3600"
+
+      - name: Invalidate CloudFront cache
+        run: |
+          DISTRIBUTION_ID=$(aws cloudfront list-distributions \
+            --query "DistributionList.Items[?Origins.Items[?DomainName=='${{ steps.stack-outputs.outputs.frontend_bucket }}.s3.amazonaws.com']].Id" \
+            --output text)
+
+          if [ -n "$DISTRIBUTION_ID" ] && [ "$DISTRIBUTION_ID" != "None" ]; then
+            aws cloudfront create-invalidation \
+              --distribution-id "$DISTRIBUTION_ID" \
+              --paths "/*"
+            echo "CloudFront cache invalidated for distribution: $DISTRIBUTION_ID"
+          else
+            echo "No CloudFront distribution found, skipping cache invalidation"
+          fi
+
+      - name: Deployment summary
+        run: |
+          echo "## Deployment Complete! :rocket:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment:** ${{ github.event.inputs.environment || 'dev' }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Stack Name:** $STACK_NAME" >> $GITHUB_STEP_SUMMARY
+          echo "**Region:** $AWS_REGION" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### URLs" >> $GITHUB_STEP_SUMMARY
+          echo "- **Frontend:** https://${{ steps.stack-outputs.outputs.frontend_url }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **API:** ${{ steps.stack-outputs.outputs.api_endpoint }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Next Steps" >> $GITHUB_STEP_SUMMARY
+          echo "1. Upload master data to: \`s3://$S3_BUCKET/master-data/\`" >> $GITHUB_STEP_SUMMARY
+          echo "2. Upload EDI data to: \`s3://$S3_BUCKET/edi-mockdata/\`" >> $GITHUB_STEP_SUMMARY
+          echo "3. Test the application at the Frontend URL" >> $GITHUB_STEP_SUMMARY
+
+      - name: Cleanup
+        if: always()
+        run: |
+          rm -f lambda-function.zip

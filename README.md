@@ -34,17 +34,55 @@ An OpenUI5-based EDI monitoring application that highlights IDOC errors for non-
 
 ## Deployment
 
-### Prerequisites
+### Option 1: GitHub Actions (Recommended)
+
+Automated deployment using GitHub Actions workflows.
+
+**Setup:**
+1. Configure GitHub Secrets (see [GITHUB_ACTIONS_SETUP.md](GITHUB_ACTIONS_SETUP.md)):
+   - `AWS_ACCESS_KEY_ID`
+   - `AWS_SECRET_ACCESS_KEY`
+   - `AWS_REGION` (optional, defaults to us-east-1)
+
+2. Deploy automatically:
+   ```bash
+   git push origin main
+   ```
+   Or manually trigger from GitHub Actions tab
+
+3. Upload sample data:
+   - Go to Actions → Upload Sample Data → Run workflow
+
+**Workflows Available:**
+- **Deploy to AWS** - Automatic deployment on push to main
+- **Validate PR** - Validation for pull requests
+- **Upload Sample Data** - Manual data upload
+
+See [GITHUB_ACTIONS_SETUP.md](GITHUB_ACTIONS_SETUP.md) for complete setup guide.
+
+### Option 2: Manual Deployment
+
+Local deployment using shell scripts.
+
+**Prerequisites:**
 - AWS CLI configured
 - Node.js 18.x or later
+- Python 3.11
 - AWS Account with appropriate permissions
 
-### Deploy Infrastructure
-
+**Deploy:**
 ```bash
-# Deploy CloudFormation stack
+# Deploy CloudFormation stack and application
 ./deploy.sh
+
+# Upload sample data
+./setup-sample-data.sh
+
+# Test API endpoints
+./test-api.sh
 ```
+
+See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed manual deployment guide.
 
 ### Local Development
 
@@ -58,6 +96,7 @@ npm start
 
 ## Configuration
 
-AWS credentials should be configured in AWS Secrets Manager or environment variables:
+AWS credentials should be configured in GitHub Secrets (for CI/CD) or locally:
+- AWS Access Key ID and Secret Access Key
 - S3 bucket access
 - API Gateway configuration
