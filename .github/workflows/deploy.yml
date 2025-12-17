@@ -57,6 +57,42 @@ jobs:
         run: |
           npm run build || echo "Build failed, will deploy source files"
 
+      - name: Check and fix stuck stack
+        run: |
+          # Check if stack exists and its status
+          STACK_STATUS=$(aws cloudformation describe-stacks \
+            --stack-name "$STACK_NAME" \
+            --region "$AWS_REGION" \
+            --query 'Stacks[0].StackStatus' \
+            --output text 2>/dev/null || echo "DOES_NOT_EXIST")
+
+          echo "Current stack status: $STACK_STATUS"
+
+          # Delete if in bad state
+          if [[ "$STACK_STATUS" == "REVIEW_IN_PROGRESS" ]] || \
+             [[ "$STACK_STATUS" == "ROLLBACK_COMPLETE" ]] || \
+             [[ "$STACK_STATUS" == "CREATE_FAILED" ]]; then
+            echo "Stack is in bad state ($STACK_STATUS). Deleting..."
+            aws cloudformation delete-stack \
+              --stack-name "$STACK_NAME" \
+              --region "$AWS_REGION"
+
+            echo "Waiting for deletion..."
+            aws cloudformation wait stack-delete-complete \
+              --stack-name "$STACK_NAME" \
+              --region "$AWS_REGION" || true
+
+            echo "Stack deleted successfully"
+          fi
+
+      - name: Generate unique S3 bucket name
+        run: |
+          # Use timestamp for unique bucket name
+          TIMESTAMP=$(date +%s)
+          UNIQUE_BUCKET="edi-monitor-${TIMESTAMP}"
+          echo "S3_BUCKET_UNIQUE=$UNIQUE_BUCKET" >> $GITHUB_ENV
+          echo "Using unique bucket name: $UNIQUE_BUCKET"
+
       - name: Package Lambda function
         run: |
           cd backend
@@ -78,15 +114,23 @@ jobs:
       - name: Deploy CloudFormation stack
         id: cf-deploy
         run: |
+          # Use the unique bucket name we generated
+          BUCKET_TO_USE="${S3_BUCKET_UNIQUE:-$S3_BUCKET}"
+
+          echo "Deploying stack with bucket: $BUCKET_TO_USE"
+
           aws cloudformation deploy \
             --template-file cloudformation.yaml \
             --stack-name "$STACK_NAME" \
             --parameter-overrides \
               EnvironmentName="${{ github.event.inputs.environment || 'dev' }}" \
-              S3BucketName="$S3_BUCKET" \
+              S3BucketName="$BUCKET_TO_USE" \
             --capabilities CAPABILITY_IAM \
             --region "$AWS_REGION" \
             --no-fail-on-empty-changeset
+
+          # Save bucket name for later steps
+          echo "DEPLOYED_BUCKET=$BUCKET_TO_USE" >> $GITHUB_ENV
 
       - name: Get stack outputs
         id: stack-outputs
@@ -157,10 +201,14 @@ jobs:
           echo "- **Frontend:** https://${{ steps.stack-outputs.outputs.frontend_url }}" >> $GITHUB_STEP_SUMMARY
           echo "- **API:** ${{ steps.stack-outputs.outputs.api_endpoint }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**S3 Bucket:** $DEPLOYED_BUCKET" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Next Steps" >> $GITHUB_STEP_SUMMARY
-          echo "1. Upload master data to: \`s3://$S3_BUCKET/master-data/\`" >> $GITHUB_STEP_SUMMARY
-          echo "2. Upload EDI data to: \`s3://$S3_BUCKET/edi-mockdata/\`" >> $GITHUB_STEP_SUMMARY
-          echo "3. Test the application at the Frontend URL" >> $GITHUB_STEP_SUMMARY
+          echo "1. Upload master data to: \`s3://$DEPLOYED_BUCKET/master-data/\`" >> $GITHUB_STEP_SUMMARY
+          echo "2. Upload EDI data to: \`s3://$DEPLOYED_BUCKET/edi-mockdata/\`" >> $GITHUB_STEP_SUMMARY
+          echo "3. Test the application at the CloudFront URL above" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Important:** Save \`$DEPLOYED_BUCKET\` for future reference" >> $GITHUB_STEP_SUMMARY
 
       - name: Cleanup
         if: always()
