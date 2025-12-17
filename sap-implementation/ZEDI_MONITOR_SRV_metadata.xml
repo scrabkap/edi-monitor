@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  SAP EDI Monitor OData Service - Metadata
+  Service Name: ZEDI_MONITOR_SRV
+
+  This is a simplified version with only the fields needed for the EDI Monitor UI.
+  To be implemented in SAP Gateway Service Builder (SEGW) transaction.
+-->
+<edmx:Edmx Version="4.0" xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx">
+  <edmx:DataServices>
+    <Schema Namespace="ZEDI_MONITOR" xmlns="http://docs.oasis-open.org/odata/ns/edm">
+
+      <!-- Master Data Entities (Simplified) -->
+
+      <EntityType Name="VendorMaster">
+        <Key>
+          <PropertyRef Name="Lifnr"/>
+        </Key>
+        <Property Name="Lifnr" Type="Edm.String" MaxLength="10" Nullable="false"/>
+        <Property Name="Name1" Type="Edm.String" MaxLength="35"/>
+        <Property Name="Land1" Type="Edm.String" MaxLength="3"/>
+        <Property Name="Ort01" Type="Edm.String" MaxLength="35"/>
+        <Property Name="Stras" Type="Edm.String" MaxLength="35"/>
+      </EntityType>
+
+      <EntityType Name="CustomerMaster">
+        <Key>
+          <PropertyRef Name="Kunnr"/>
+        </Key>
+        <Property Name="Kunnr" Type="Edm.String" MaxLength="10" Nullable="false"/>
+        <Property Name="Name1" Type="Edm.String" MaxLength="35"/>
+        <Property Name="Land1" Type="Edm.String" MaxLength="3"/>
+        <Property Name="Ort01" Type="Edm.String" MaxLength="35"/>
+        <Property Name="Stras" Type="Edm.String" MaxLength="35"/>
+      </EntityType>
+
+      <EntityType Name="MaterialDescription">
+        <Key>
+          <PropertyRef Name="Matnr"/>
+        </Key>
+        <Property Name="Matnr" Type="Edm.String" MaxLength="18" Nullable="false"/>
+        <Property Name="Maktx" Type="Edm.String" MaxLength="40"/>
+      </EntityType>
+
+      <!-- EDI Data Entities -->
+
+      <EntityType Name="EDIDocument">
+        <Key>
+          <PropertyRef Name="DocumentNumber"/>
+        </Key>
+        <!-- Document Identifiers -->
+        <Property Name="DocumentNumber" Type="Edm.String" MaxLength="13" Nullable="false"/>
+        <Property Name="EdiDelivery" Type="Edm.String" MaxLength="13"/>
+        <Property Name="EdiStoreNumber" Type="Edm.String" MaxLength="18"/>
+
+        <!-- Master Data (Joined) -->
+        <Property Name="VendorName" Type="Edm.String" MaxLength="35"/>
+        <Property Name="StoreName" Type="Edm.String" MaxLength="35"/>
+
+        <!-- Document Information -->
+        <Property Name="ProcessingDate" Type="Edm.String" MaxLength="8"/>
+        <Property Name="ProcessingTime" Type="Edm.String" MaxLength="6"/>
+        <Property Name="Timestamp" Type="Edm.DateTimeOffset"/>
+
+        <!-- Error Information -->
+        <Property Name="ErrorCode" Type="Edm.String" MaxLength="3"/>
+        <Property Name="ErrorDescription" Type="Edm.String" MaxLength="100"/>
+        <Property Name="Severity" Type="Edm.String" MaxLength="10"/>
+
+        <!-- Counts -->
+        <Property Name="ItemCount" Type="Edm.Int32"/>
+        <Property Name="ErrorCount" Type="Edm.Int32"/>
+
+        <!-- SAP Document References -->
+        <Property Name="Vbeln" Type="Edm.String" MaxLength="10"/>
+        <Property Name="Mblnr" Type="Edm.String" MaxLength="10"/>
+        <Property Name="Mjahr" Type="Edm.String" MaxLength="4"/>
+
+        <!-- Navigation to Items -->
+        <NavigationProperty Name="Items" Type="Collection(ZEDI_MONITOR.EDIItem)"/>
+      </EntityType>
+
+      <EntityType Name="EDIItem">
+        <Key>
+          <PropertyRef Name="DocumentNumber"/>
+          <PropertyRef Name="ItemNumber"/>
+        </Key>
+        <!-- Item Identifiers -->
+        <Property Name="DocumentNumber" Type="Edm.String" MaxLength="13" Nullable="false"/>
+        <Property Name="ItemNumber" Type="Edm.String" MaxLength="6" Nullable="false"/>
+
+        <!-- Material Information -->
+        <Property Name="Barcode" Type="Edm.String" MaxLength="18"/>
+        <Property Name="MaterialDescription" Type="Edm.String" MaxLength="40"/>
+
+        <!-- Quantities -->
+        <Property Name="Quantity" Type="Edm.String" MaxLength="15"/>
+        <Property Name="Weight" Type="Edm.String" MaxLength="15"/>
+
+        <!-- Error Information -->
+        <Property Name="ErrorCode" Type="Edm.String" MaxLength="3"/>
+        <Property Name="ErrorDescription" Type="Edm.String" MaxLength="100"/>
+        <Property Name="Severity" Type="Edm.String" MaxLength="10"/>
+
+        <!-- Additional Fields -->
+        <Property Name="ExpirationDate" Type="Edm.String" MaxLength="8"/>
+        <Property Name="PurchaseOrder" Type="Edm.String" MaxLength="10"/>
+        <Property Name="PoItem" Type="Edm.String" MaxLength="5"/>
+      </EntityType>
+
+      <!-- Dashboard KPIs -->
+      <EntityType Name="DashboardKPI">
+        <Key>
+          <PropertyRef Name="Id"/>
+        </Key>
+        <Property Name="Id" Type="Edm.String" MaxLength="10" Nullable="false"/>
+        <Property Name="TotalDocuments" Type="Edm.Int32"/>
+        <Property Name="ErrorDocuments" Type="Edm.Int32"/>
+        <Property Name="WarningDocuments" Type="Edm.Int32"/>
+        <Property Name="SuccessDocuments" Type="Edm.Int32"/>
+        <Property Name="TotalItems" Type="Edm.Int32"/>
+        <Property Name="ErrorItems" Type="Edm.Int32"/>
+        <Property Name="LastUpdate" Type="Edm.DateTimeOffset"/>
+      </EntityType>
+
+      <!-- Entity Container -->
+      <EntityContainer Name="ZEDI_MONITOR_SRV">
+        <EntitySet Name="EDIDocuments" EntityType="ZEDI_MONITOR.EDIDocument">
+          <NavigationPropertyBinding Path="Items" Target="EDIItems"/>
+        </EntitySet>
+        <EntitySet Name="EDIItems" EntityType="ZEDI_MONITOR.EDIItem"/>
+        <EntitySet Name="VendorMasters" EntityType="ZEDI_MONITOR.VendorMaster"/>
+        <EntitySet Name="CustomerMasters" EntityType="ZEDI_MONITOR.CustomerMaster"/>
+        <EntitySet Name="MaterialDescriptions" EntityType="ZEDI_MONITOR.MaterialDescription"/>
+        <EntitySet Name="DashboardKPI" EntityType="ZEDI_MONITOR.DashboardKPI"/>
+      </EntityContainer>
+
+    </Schema>
+  </edmx:DataServices>
+</edmx:Edmx>
