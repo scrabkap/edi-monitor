@@ -30,17 +30,23 @@ def lambda_handler(event, context):
 
         query_params = event.get('queryStringParameters') or {}
 
+        # Strip stage name from path (e.g., /dev/api/dashboard -> /api/dashboard)
+        if path.startswith('/dev/'):
+            path = path[4:]
+        elif path.startswith('/prod/'):
+            path = path[5:]
+
         print(f"Processing request: {http_method} {path}")
         print(f"Event: {json.dumps(event)}")  # Debug logging
 
         # Route requests
-        if path == '/api/edi-data' or path.startswith('/api/edi-data'):
+        if path.startswith('/api/edi-data'):
             return get_edi_data(query_params)
-        elif path == '/api/master-data' or path.startswith('/api/master-data'):
+        elif path.startswith('/api/master-data'):
             return get_master_data()
-        elif path == '/api/dashboard' or path.startswith('/api/dashboard'):
+        elif path.startswith('/api/dashboard'):
             return get_dashboard_data()
-        elif path == '/api/health' or path.startswith('/api/health'):
+        elif path.startswith('/api/health'):
             return {
                 'statusCode': 200,
                 'headers': get_cors_headers(),
@@ -50,7 +56,12 @@ def lambda_handler(event, context):
             return {
                 'statusCode': 404,
                 'headers': get_cors_headers(),
-                'body': json.dumps({'error': 'Not found', 'path': path, 'method': http_method})
+                'body': json.dumps({
+                    'error': 'Not found',
+                    'path': path,
+                    'method': http_method,
+                    'available_routes': ['/api/health', '/api/dashboard', '/api/edi-data', '/api/master-data']
+                })
             }
     except Exception as e:
         print(f"Error: {str(e)}")
