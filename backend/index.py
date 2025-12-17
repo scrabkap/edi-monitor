@@ -141,7 +141,7 @@ def get_edi_data(query_params: Dict):
         # Parse pagination and filter parameters
         limit = int(query_params.get('limit', 100))
         offset = int(query_params.get('offset', 0))
-        days = int(query_params.get('days', 7))  # Default: last 7 days
+        days = int(query_params.get('days', 0))  # Default: 0 = no date filter
         severity_filter = query_params.get('severity')  # Optional severity filter
 
         # Load EDI data
@@ -158,8 +158,7 @@ def get_edi_data(query_params: Dict):
         lfa1_lookup = {normalize_numeric(row.get('EDI Delivery', '')): row for row in lfa1_data if row.get('EDI Delivery', '').strip()}
         makt_lookup = {normalize_numeric(row.get('Material', '')): row for row in makt_data if row.get('Material', '').strip()}
 
-        # Filter headers by date and errors BEFORE processing (optimization)
-        cutoff_date = datetime.now() - timedelta(days=days)
+        # Filter headers by errors BEFORE processing (optimization)
         filtered_headers = []
 
         for header in edi_header:
@@ -168,16 +167,17 @@ def get_edi_data(query_params: Dict):
             if not error_code:
                 continue
 
-            # Filter by date if DN Processing Date exists
-            date_str = header.get('DN Processing Date', '').strip()
-            if date_str:
-                try:
-                    # Try parsing date (adjust format as needed)
-                    record_date = datetime.strptime(date_str, '%Y%m%d')
-                    if record_date < cutoff_date:
-                        continue
-                except:
-                    pass  # Include if date parsing fails
+            # Filter by date if days parameter is provided (days > 0)
+            if days > 0:
+                date_str = header.get('DN Processing Date', '').strip()
+                if date_str:
+                    try:
+                        cutoff_date = datetime.now() - timedelta(days=days)
+                        record_date = datetime.strptime(date_str, '%Y%m%d')
+                        if record_date < cutoff_date:
+                            continue
+                    except:
+                        pass  # Include if date parsing fails
 
             filtered_headers.append(header)
 
@@ -338,8 +338,7 @@ def get_dashboard_data():
         lfa1_lookup = {normalize_numeric(row.get('EDI Delivery', '')): row for row in lfa1_data if row.get('EDI Delivery', '').strip()}
         makt_lookup = {normalize_numeric(row.get('Material', '')): row for row in makt_data if row.get('Material', '').strip()}
 
-        # Filter headers by date and errors BEFORE processing (same as get_edi_data)
-        cutoff_date = datetime.now() - timedelta(days=7)
+        # Filter headers by errors BEFORE processing (no date filter by default)
         filtered_headers = []
 
         for header in edi_header:
@@ -347,17 +346,6 @@ def get_dashboard_data():
             error_code = header.get('Error Code', '').strip()
             if not error_code:
                 continue
-
-            # Filter by date if DN Processing Date exists
-            date_str = header.get('DN Processing Date', '').strip()
-            if date_str:
-                try:
-                    # Try parsing date (adjust format as needed)
-                    record_date = datetime.strptime(date_str, '%Y%m%d')
-                    if record_date < cutoff_date:
-                        continue
-                except:
-                    pass  # Include if date parsing fails
 
             filtered_headers.append(header)
 
