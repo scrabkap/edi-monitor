@@ -137,10 +137,10 @@ def get_edi_data(query_params: Dict):
         lfa1_data = read_csv_from_s3('master-data/LFA1.csv')
         makt_data = read_csv_from_s3('master-data/MAKT.csv')
 
-        # Create lookup dictionaries
-        kna1_lookup = {row.get('GP', ''): row for row in kna1_data if row.get('GP')}
-        lfa1_lookup = {row.get('EN', ''): row for row in lfa1_data if row.get('EN')}
-        makt_lookup = {row.get('Material', ''): row for row in makt_data if row.get('Material')}
+        # Create lookup dictionaries using correct column names
+        kna1_lookup = {row.get('EDI Store number', '').strip(): row for row in kna1_data if row.get('EDI Store number', '').strip()}
+        lfa1_lookup = {row.get('EDI Delivery', '').strip(): row for row in lfa1_data if row.get('EDI Delivery', '').strip()}
+        makt_lookup = {row.get('Material', '').strip(): row for row in makt_data if row.get('Material', '').strip()}
 
         # Process EDI data
         enriched_data = process_edi_documents(edi_header, edi_items, kna1_lookup, lfa1_lookup, makt_lookup)
@@ -174,38 +174,51 @@ def process_edi_documents(headers: List[Dict], items: List[Dict],
     """Process EDI documents and enrich with master data"""
     result = []
 
+    # Group items by EDI Delivery number
+    items_by_delivery = {}
+    for item in items:
+        edi_delivery = item.get('EDI Delivery', '').strip()
+        if edi_delivery:
+            if edi_delivery not in items_by_delivery:
+                items_by_delivery[edi_delivery] = []
+            items_by_delivery[edi_delivery].append(item)
+
     for header in headers:
-        # Get header fields (assuming column names match the data structure)
-        # Column B: EDI Delivery, Column D: EDI Store Number, Column H: Error Code
-        edi_delivery = header.get('B', '') or header.get('EDI Delivery', '')
-        edi_store_number = header.get('D', '') or header.get('EDI Store Number', '')
-        error_code = header.get('H', '') or header.get('Error Code', '')
-        doc_number = header.get('A', '') or header.get('Document Number', '')
+        # Get header fields using correct column names
+        edi_delivery = header.get('EDI Delivery', '').strip()
+        edi_store_number = header.get('EDI Store number', '').strip()
+        error_code = header.get('Error Code', '').strip()
+        doc_number = header.get('Vendor\'s Delivery Number', '').strip()
+
+        # Skip headers that have no items
+        if edi_delivery not in items_by_delivery:
+            continue
 
         # Join with master data
         store_data = kna1_lookup.get(edi_store_number, {})
         vendor_data = lfa1_lookup.get(edi_delivery, {})
 
         # Get store and vendor names
-        store_name = store_data.get('Name', 'Unknown Store')
-        vendor_name = vendor_data.get('Name', 'Unknown Vendor')
+        store_name = store_data.get('Name 1', 'Unknown Store').strip()
+        vendor_name = vendor_data.get('Name 1', 'Unknown Vendor').strip()
 
-        # Find related items for this document
-        doc_items = [item for item in items if item.get('A') == doc_number or item.get('Document Number') == doc_number]
+        # Get items for this delivery
+        doc_items = items_by_delivery.get(edi_delivery, [])
 
         # Enrich items with material descriptions
         enriched_items = []
         for item in doc_items:
-            barcode = item.get('Barcode', '') or item.get('B', '')
+            barcode = item.get('Barcode', '').strip()
             material_data = makt_lookup.get(barcode, {})
-            material_desc = material_data.get('Description', 'Unknown Material')
+            material_desc = material_data.get('Material Description',
+                                            material_data.get('Material description', 'Unknown Material')).strip()
 
-            item_error_code = item.get('H', '') or item.get('Error Code', '')
+            item_error_code = item.get('Error Code', '').strip()
 
             enriched_item = {
                 'barcode': barcode,
                 'material_description': material_desc,
-                'quantity': item.get('C', '') or item.get('Quantity', ''),
+                'quantity': item.get('PC Quantity', '').strip(),
                 'error_code': item_error_code,
                 'error_info': get_error_info(item_error_code)
             }
@@ -226,7 +239,7 @@ def process_edi_documents(headers: List[Dict], items: List[Dict],
             'items': enriched_items,
             'item_count': len(enriched_items),
             'error_count': sum(1 for item in enriched_items if item['error_code']),
-            'timestamp': header.get('Timestamp', datetime.now().isoformat())
+            'timestamp': datetime.now().isoformat()
         }
 
         result.append(doc_data)
