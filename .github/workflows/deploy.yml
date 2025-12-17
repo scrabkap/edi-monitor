@@ -112,7 +112,7 @@ jobs:
           LAMBDA_BUCKET="${STACK_NAME}-lambda-${AWS_REGION}"
           aws s3 cp lambda-function.zip "s3://$LAMBDA_BUCKET/lambda-function.zip"
 
-      - name: Check if stack exists
+      - name: Check if stack exists and wait if updating
         id: check-stack
         run: |
           STACK_STATUS=$(aws cloudformation describe-stacks \
@@ -121,8 +121,27 @@ jobs:
             --query 'Stacks[0].StackStatus' \
             --output text 2>/dev/null || echo "DOES_NOT_EXIST")
 
+          echo "Current stack status: $STACK_STATUS"
+
+          # Wait if stack is in transitioning state
+          if [[ "$STACK_STATUS" == *"IN_PROGRESS"* ]] || [[ "$STACK_STATUS" == *"CLEANUP"* ]]; then
+            echo "Stack is updating, waiting for it to complete..."
+            aws cloudformation wait stack-update-complete \
+              --stack-name "$STACK_NAME" \
+              --region "$AWS_REGION" || true
+
+            # Re-check status
+            STACK_STATUS=$(aws cloudformation describe-stacks \
+              --stack-name "$STACK_NAME" \
+              --region "$AWS_REGION" \
+              --query 'Stacks[0].StackStatus' \
+              --output text)
+            echo "Stack status after wait: $STACK_STATUS"
+          fi
+
+          # Skip CloudFormation if stack is healthy
           if [[ "$STACK_STATUS" == "CREATE_COMPLETE" ]] || [[ "$STACK_STATUS" == "UPDATE_COMPLETE" ]]; then
-            echo "Stack exists and is healthy - will skip CloudFormation deployment"
+            echo "✓ Stack is healthy - will skip CloudFormation deployment"
             echo "skip_cf=true" >> $GITHUB_OUTPUT
 
             # Get existing bucket name from stack
