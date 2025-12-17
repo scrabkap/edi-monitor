@@ -1,15 +1,23 @@
 sap.ui.define([
     "sap/ui/core/mvc/Controller",
     "sap/ui/model/json/JSONModel",
+    "sap/ui/model/Filter",
+    "sap/ui/model/FilterOperator",
     "sap/m/MessageToast",
     "sap/m/MessageBox",
     "sap/ui/core/routing/History"
-], function (Controller, JSONModel, MessageToast, MessageBox, History) {
+], function (Controller, JSONModel, Filter, FilterOperator, MessageToast, MessageBox, History) {
     "use strict";
 
     return Controller.extend("edi.monitor.controller.EDIDetail", {
 
         onInit: function () {
+            // Initialize view model
+            const oViewModel = new JSONModel({
+                itemStatusFilter: ""
+            });
+            this.getView().setModel(oViewModel, "view");
+
             // Initialize detail model
             const oDetailModel = new JSONModel({});
             this.getView().setModel(oDetailModel, "detail");
@@ -113,6 +121,26 @@ sap.ui.define([
             const oModel = this.getView().getModel("detail");
             const sDocumentNumber = oModel.getProperty("/document_number");
             this._loadFromAPI(sDocumentNumber);
+        },
+
+        /**
+         * Handle item status filter change
+         */
+        onItemFilterChange: function (oEvent) {
+            const sKey = oEvent.getParameter("item").getKey();
+            const oTable = this.byId("itemsTable");
+            const oBinding = oTable.getBinding("items");
+
+            if (!oBinding) {
+                return;
+            }
+
+            const aFilters = [];
+            if (sKey) {
+                aFilters.push(new Filter("severity", FilterOperator.EQ, sKey));
+            }
+
+            oBinding.filter(aFilters);
         }
     });
 });

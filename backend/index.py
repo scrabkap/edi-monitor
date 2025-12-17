@@ -17,13 +17,30 @@ ERROR_CODES = {
 }
 
 def normalize_numeric(value: str) -> str:
-    """Remove .0 suffix from numeric strings (e.g., '28.0' -> '28', '7290027607259.0' -> '7290027607259')"""
+    """
+    Normalize numeric strings:
+    - Remove .0 suffix: '28.0' -> '28'
+    - Convert scientific notation: '7.29108E+12' -> '7291080000000'
+    - Return as string without decimals
+    """
     if not value:
         return ''
     value = value.strip()
-    if value.endswith('.0'):
-        return value[:-2]
-    return value
+
+    # Try to parse as float (handles scientific notation and regular numbers)
+    try:
+        num = float(value)
+        # Convert to int if it's a whole number (no decimals)
+        if num == int(num):
+            return str(int(num))
+        else:
+            # Has decimals, just remove trailing .0
+            if value.endswith('.0'):
+                return value[:-2]
+            return value
+    except ValueError:
+        # Not a number, return as-is
+        return value
 
 def lambda_handler(event, context):
     """Main Lambda handler"""
@@ -255,17 +272,33 @@ def process_edi_documents(headers: List[Dict], items: List[Dict],
 
             item_error_code = normalize_numeric(item.get('Error Code', ''))
 
+            # Determine item severity based on error code
+            item_severity = 'Success'
+            if item_error_code == '104':
+                item_severity = 'Error'
+            elif item_error_code == '114':
+                item_severity = 'Warning'
+
             enriched_item = {
                 'barcode': barcode,
                 'material_description': material_desc,
                 'quantity': item.get('PC Quantity', '').strip(),
                 'error_code': item_error_code,
-                'error_info': get_error_info(item_error_code)
+                'error_info': get_error_info(item_error_code),
+                'severity': item_severity
             }
             enriched_items.append(enriched_item)
 
         # Determine overall severity
         severity = get_severity(error_code, enriched_items)
+
+        # Calculate error count correctly:
+        # - If header error code 28 (general document error): count all items
+        # - Otherwise: count only items with error codes (104, 114, etc.)
+        if error_code == '28':
+            error_count = len(enriched_items)  # General document error - all items affected
+        else:
+            error_count = sum(1 for item in enriched_items if item['error_code'])  # Count only items with errors
 
         doc_data = {
             'document_number': doc_number,
@@ -278,7 +311,7 @@ def process_edi_documents(headers: List[Dict], items: List[Dict],
             'severity': severity,
             'items': enriched_items,
             'item_count': len(enriched_items),
-            'error_count': sum(1 for item in enriched_items if item['error_code']),
+            'error_count': error_count,
             'timestamp': datetime.now().isoformat()
         }
 

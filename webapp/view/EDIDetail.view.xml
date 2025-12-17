@@ -74,6 +74,23 @@
                     expandable="true"
                     expanded="true">
                     <content>
+                        <!-- Item Status Filter -->
+                        <Toolbar>
+                            <Label text="{i18n>filterByStatus}:" design="Bold"/>
+                            <SegmentedButton
+                                id="itemStatusFilter"
+                                selectedKey="{view>/itemStatusFilter}"
+                                selectionChange="onItemFilterChange">
+                                <items>
+                                    <SegmentedButtonItem key="" text="{i18n>all}"/>
+                                    <SegmentedButtonItem key="Error" text="{i18n>errors}" icon="sap-icon://error"/>
+                                    <SegmentedButtonItem key="Warning" text="{i18n>warnings}" icon="sap-icon://alert"/>
+                                    <SegmentedButtonItem key="Success" text="{i18n>success}" icon="sap-icon://accept"/>
+                                </items>
+                            </SegmentedButton>
+                            <ToolbarSpacer/>
+                        </Toolbar>
+
                         <Table
                             id="itemsTable"
                             items="{detail>/items}"
@@ -110,9 +127,9 @@
                                             text="{detail>error_info/description}"
                                             visible="{= !!${detail>error_info}}"/>
                                         <ObjectStatus
-                                            text="{= ${detail>error_code} ? (${detail>error_code} === '104' ? 'Error' : 'Warning') : 'OK'}"
-                                            state="{= ${detail>error_code} ? (${detail>error_code} === '104' ? 'Error' : 'Warning') : 'Success'}"
-                                            icon="{= ${detail>error_code} ? (${detail>error_code} === '104' ? 'sap-icon://error' : 'sap-icon://alert') : 'sap-icon://accept'}"/>
+                                            text="{detail>severity}"
+                                            state="{= ${detail>severity} === 'Error' ? 'Error' : ${detail>severity} === 'Warning' ? 'Warning' : 'Success'}"
+                                            icon="{= ${detail>severity} === 'Error' ? 'sap-icon://error' : ${detail>severity} === 'Warning' ? 'sap-icon://alert' : 'sap-icon://accept'}"/>
                                     </cells>
                                 </ColumnListItem>
                             </items>
