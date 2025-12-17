@@ -11,9 +11,19 @@ BUCKET = os.environ.get('S3_BUCKET', 'edi-monitor')
 
 # Error code definitions
 ERROR_CODES = {
+    '28': {'severity': 'Error', 'description': 'General error - entire document failed'},
     '104': {'severity': 'Error', 'description': 'Item is not listed in store assortment'},
     '114': {'severity': 'Warning', 'description': 'Item wasn\'t ordered'}
 }
+
+def normalize_numeric(value: str) -> str:
+    """Remove .0 suffix from numeric strings (e.g., '28.0' -> '28', '7290027607259.0' -> '7290027607259')"""
+    if not value:
+        return ''
+    value = value.strip()
+    if value.endswith('.0'):
+        return value[:-2]
+    return value
 
 def lambda_handler(event, context):
     """Main Lambda handler"""
@@ -143,10 +153,10 @@ def get_edi_data(query_params: Dict):
         lfa1_data = read_csv_from_s3('master-data/LFA1.csv')
         makt_data = read_csv_from_s3('master-data/MAKT.csv')
 
-        # Create lookup dictionaries using correct column names
-        kna1_lookup = {row.get('EDI Store number', '').strip(): row for row in kna1_data if row.get('EDI Store number', '').strip()}
-        lfa1_lookup = {row.get('EDI Delivery', '').strip(): row for row in lfa1_data if row.get('EDI Delivery', '').strip()}
-        makt_lookup = {row.get('Material', '').strip(): row for row in makt_data if row.get('Material', '').strip()}
+        # Create lookup dictionaries using correct column names with normalized keys
+        kna1_lookup = {normalize_numeric(row.get('EDI Store number', '')): row for row in kna1_data if row.get('EDI Store number', '').strip()}
+        lfa1_lookup = {normalize_numeric(row.get('EDI Delivery', '')): row for row in lfa1_data if row.get('EDI Delivery', '').strip()}
+        makt_lookup = {normalize_numeric(row.get('Material', '')): row for row in makt_data if row.get('Material', '').strip()}
 
         # Filter headers by date and errors BEFORE processing (optimization)
         cutoff_date = datetime.now() - timedelta(days=days)
@@ -222,17 +232,17 @@ def process_edi_documents(headers: List[Dict], items: List[Dict],
             items_by_doc_number[doc_number].append(item)
 
     for header in headers:
-        # Get header fields using correct column names
-        edi_delivery = header.get('EDI Delivery', '').strip()
-        edi_store_number = header.get('EDI Store number', '').strip()
-        error_code = header.get('Error Code', '').strip()
+        # Get header fields using correct column names and normalize numeric values
+        edi_delivery = normalize_numeric(header.get('EDI Delivery', ''))
+        edi_store_number = normalize_numeric(header.get('EDI Store number', ''))
+        error_code = normalize_numeric(header.get('Error Code', ''))
         doc_number = header.get('Vendor\'s Delivery Number', '').strip()
 
         # Skip headers that have no items (INNER JOIN)
         if doc_number not in items_by_doc_number:
             continue
 
-        # Join with master data
+        # Join with master data using normalized keys
         store_data = kna1_lookup.get(edi_store_number, {})
         vendor_data = lfa1_lookup.get(edi_delivery, {})
 
@@ -246,12 +256,12 @@ def process_edi_documents(headers: List[Dict], items: List[Dict],
         # Enrich items with material descriptions
         enriched_items = []
         for item in doc_items:
-            barcode = item.get('Barcode', '').strip()
+            barcode = normalize_numeric(item.get('Barcode', ''))
             material_data = makt_lookup.get(barcode, {})
             material_desc = material_data.get('Material Description',
                                             material_data.get('Material description', 'Unknown Material')).strip()
 
-            item_error_code = item.get('Error Code', '').strip()
+            item_error_code = normalize_numeric(item.get('Error Code', ''))
 
             enriched_item = {
                 'barcode': barcode,
@@ -292,8 +302,8 @@ def get_error_info(error_code: str) -> Optional[Dict]:
 
 def get_severity(header_error: str, items: List[Dict]) -> str:
     """Determine overall severity based on header and items"""
-    # Check header error
-    if header_error == '104':
+    # Check header errors (28 = general error, 104 = critical item error)
+    if header_error == '28' or header_error == '104':
         return 'Error'
 
     # Check items for any critical errors
@@ -301,7 +311,7 @@ def get_severity(header_error: str, items: List[Dict]) -> str:
         if item.get('error_code') == '104':
             return 'Error'
 
-    # Check for warnings
+    # Check for warnings (114 = item wasn't ordered)
     if header_error == '114':
         return 'Warning'
 
@@ -323,10 +333,10 @@ def get_dashboard_data():
         lfa1_data = read_csv_from_s3('master-data/LFA1.csv')
         makt_data = read_csv_from_s3('master-data/MAKT.csv')
 
-        # Create lookups using correct column names
-        kna1_lookup = {row.get('EDI Store number', '').strip(): row for row in kna1_data if row.get('EDI Store number', '').strip()}
-        lfa1_lookup = {row.get('EDI Delivery', '').strip(): row for row in lfa1_data if row.get('EDI Delivery', '').strip()}
-        makt_lookup = {row.get('Material', '').strip(): row for row in makt_data if row.get('Material', '').strip()}
+        # Create lookups using correct column names with normalized keys
+        kna1_lookup = {normalize_numeric(row.get('EDI Store number', '')): row for row in kna1_data if row.get('EDI Store number', '').strip()}
+        lfa1_lookup = {normalize_numeric(row.get('EDI Delivery', '')): row for row in lfa1_data if row.get('EDI Delivery', '').strip()}
+        makt_lookup = {normalize_numeric(row.get('Material', '')): row for row in makt_data if row.get('Material', '').strip()}
 
         # Filter headers by date and errors BEFORE processing (same as get_edi_data)
         cutoff_date = datetime.now() - timedelta(days=7)
