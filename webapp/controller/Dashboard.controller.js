@@ -89,6 +89,15 @@ sap.ui.define([
         },
 
         /**
+         * Show only success documents
+         */
+        onShowSuccess: function () {
+            this.getOwnerComponent().getRouter().navTo("ediList", {
+                severity: "Success"
+            });
+        },
+
+        /**
          * Handle error selection from table
          */
         onErrorSelect: function (oEvent) {

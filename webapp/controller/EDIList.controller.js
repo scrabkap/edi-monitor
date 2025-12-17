@@ -13,7 +13,11 @@ sap.ui.define([
         onInit: function () {
             // Initialize view model
             const oViewModel = new JSONModel({
-                severityFilter: ""
+                severityFilter: "",
+                storeFilter: "",
+                vendorFilter: "",
+                documentFilter: "",
+                dateRange: null
             });
             this.getView().setModel(oViewModel, "view");
 
@@ -151,6 +155,99 @@ sap.ui.define([
          */
         onExport: function () {
             MessageToast.show("Export functionality - to be implemented");
+        },
+
+        /**
+         * Open advanced filter dialog
+         */
+        onOpenFilterDialog: function () {
+            const oFilterToolbar = this.byId("filterToolbar");
+            const bVisible = oFilterToolbar.getVisible();
+            oFilterToolbar.setVisible(!bVisible);
+        },
+
+        /**
+         * Handle quick filter change (store, vendor, document)
+         */
+        onQuickFilterChange: function () {
+            this._applyFilters();
+        },
+
+        /**
+         * Handle date range change
+         */
+        onDateRangeChange: function (oEvent) {
+            const oDateRange = oEvent.getSource();
+            const oViewModel = this.getView().getModel("view");
+            oViewModel.setProperty("/dateRange", {
+                from: oDateRange.getDateValue(),
+                to: oDateRange.getSecondDateValue()
+            });
+            this._applyFilters();
+        },
+
+        /**
+         * Clear all filters
+         */
+        onClearFilters: function () {
+            const oViewModel = this.getView().getModel("view");
+            oViewModel.setProperty("/storeFilter", "");
+            oViewModel.setProperty("/vendorFilter", "");
+            oViewModel.setProperty("/documentFilter", "");
+            oViewModel.setProperty("/dateRange", null);
+
+            this.byId("dateRangeFilter").setDateValue(null);
+            this.byId("dateRangeFilter").setSecondDateValue(null);
+
+            this._applyFilters();
+        },
+
+        /**
+         * Apply all active filters
+         * @private
+         */
+        _applyFilters: function () {
+            const oTable = this.byId("ediTable");
+            const oBinding = oTable.getBinding("items");
+
+            if (!oBinding) {
+                return;
+            }
+
+            const oViewModel = this.getView().getModel("view");
+            const aFilters = [];
+
+            // Store filter
+            const sStoreFilter = oViewModel.getProperty("/storeFilter");
+            if (sStoreFilter) {
+                aFilters.push(new Filter("store_name", FilterOperator.Contains, sStoreFilter));
+            }
+
+            // Vendor filter
+            const sVendorFilter = oViewModel.getProperty("/vendorFilter");
+            if (sVendorFilter) {
+                aFilters.push(new Filter("vendor_name", FilterOperator.Contains, sVendorFilter));
+            }
+
+            // Document filter
+            const sDocumentFilter = oViewModel.getProperty("/documentFilter");
+            if (sDocumentFilter) {
+                aFilters.push(new Filter("document_number", FilterOperator.Contains, sDocumentFilter));
+            }
+
+            // Date range filter
+            const oDateRange = oViewModel.getProperty("/dateRange");
+            if (oDateRange && oDateRange.from && oDateRange.to) {
+                aFilters.push(new Filter({
+                    path: "timestamp",
+                    test: function(sTimestamp) {
+                        const oDate = new Date(sTimestamp);
+                        return oDate >= oDateRange.from && oDate <= oDateRange.to;
+                    }
+                }));
+            }
+
+            oBinding.filter(aFilters);
         }
     });
 });

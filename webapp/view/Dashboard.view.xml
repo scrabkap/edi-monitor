@@ -61,7 +61,8 @@
                     <!-- Success Documents -->
                     <GenericTile
                         class="sapUiTinyMarginEnd sapUiTinyMarginBottom"
-                        header="{i18n>successDocuments}">
+                        header="{i18n>successDocuments}"
+                        press="onShowSuccess">
                         <TileContent>
                             <NumericContent
                                 value="{dashboard>/success_documents}"

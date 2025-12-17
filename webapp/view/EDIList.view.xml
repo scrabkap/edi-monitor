@@ -15,7 +15,7 @@
                 <Toolbar>
                     <SearchField
                         id="searchField"
-                        width="50%"
+                        width="30%"
                         placeholder="{i18n>searchPlaceholder}"
                         search="onSearch"/>
                     <ToolbarSpacer/>
@@ -31,9 +31,45 @@
                         </items>
                     </SegmentedButton>
                     <Button
+                        icon="sap-icon://filter"
+                        text="{i18n>advancedFilters}"
+                        press="onOpenFilterDialog"
+                        tooltip="{i18n>advancedFilters}"/>
+                    <Button
                         icon="sap-icon://refresh"
                         press="onRefresh"
                         tooltip="{i18n>refresh}"/>
+                </Toolbar>
+
+                <!-- Filter Bar for Quick Filters -->
+                <Toolbar id="filterToolbar" visible="false">
+                    <Label text="{i18n>activeFilters}:" design="Bold"/>
+                    <Input
+                        id="storeFilter"
+                        placeholder="{i18n>filterByStore}"
+                        value="{view>/storeFilter}"
+                        change="onQuickFilterChange"
+                        width="12em"/>
+                    <Input
+                        id="vendorFilter"
+                        placeholder="{i18n>filterByVendor}"
+                        value="{view>/vendorFilter}"
+                        change="onQuickFilterChange"
+                        width="12em"/>
+                    <Input
+                        id="documentFilter"
+                        placeholder="{i18n>filterByDocument}"
+                        value="{view>/documentFilter}"
+                        change="onQuickFilterChange"
+                        width="10em"/>
+                    <DateRangeSelection
+                        id="dateRangeFilter"
+                        placeholder="{i18n>selectDateRange}"
+                        change="onDateRangeChange"
+                        width="15em"/>
+                    <Button
+                        text="{i18n>clearFilters}"
+                        press="onClearFilters"/>
                 </Toolbar>
 
                 <!-- EDI Documents Table -->
