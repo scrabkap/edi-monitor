@@ -212,14 +212,14 @@ def process_edi_documents(headers: List[Dict], items: List[Dict],
     """Process EDI documents and enrich with master data"""
     result = []
 
-    # Group items by EDI Delivery number
-    items_by_delivery = {}
+    # Group items by Vendor's Delivery Number (document number)
+    items_by_doc_number = {}
     for item in items:
-        edi_delivery = item.get('EDI Delivery', '').strip()
-        if edi_delivery:
-            if edi_delivery not in items_by_delivery:
-                items_by_delivery[edi_delivery] = []
-            items_by_delivery[edi_delivery].append(item)
+        doc_number = item.get('Vendor\'s Delivery Number', '').strip()
+        if doc_number:
+            if doc_number not in items_by_doc_number:
+                items_by_doc_number[doc_number] = []
+            items_by_doc_number[doc_number].append(item)
 
     for header in headers:
         # Get header fields using correct column names
@@ -228,8 +228,8 @@ def process_edi_documents(headers: List[Dict], items: List[Dict],
         error_code = header.get('Error Code', '').strip()
         doc_number = header.get('Vendor\'s Delivery Number', '').strip()
 
-        # Skip headers that have no items
-        if edi_delivery not in items_by_delivery:
+        # Skip headers that have no items (INNER JOIN)
+        if doc_number not in items_by_doc_number:
             continue
 
         # Join with master data
@@ -241,7 +241,7 @@ def process_edi_documents(headers: List[Dict], items: List[Dict],
         vendor_name = vendor_data.get('Name 1', 'Unknown Vendor').strip()
 
         # Get items for this delivery
-        doc_items = items_by_delivery.get(edi_delivery, [])
+        doc_items = items_by_doc_number.get(doc_number, [])
 
         # Enrich items with material descriptions
         enriched_items = []
@@ -323,13 +323,36 @@ def get_dashboard_data():
         lfa1_data = read_csv_from_s3('master-data/LFA1.csv')
         makt_data = read_csv_from_s3('master-data/MAKT.csv')
 
-        # Create lookups
-        kna1_lookup = {row.get('GP', ''): row for row in kna1_data if row.get('GP')}
-        lfa1_lookup = {row.get('EN', ''): row for row in lfa1_data if row.get('EN')}
-        makt_lookup = {row.get('Material', ''): row for row in makt_data if row.get('Material')}
+        # Create lookups using correct column names
+        kna1_lookup = {row.get('EDI Store number', '').strip(): row for row in kna1_data if row.get('EDI Store number', '').strip()}
+        lfa1_lookup = {row.get('EDI Delivery', '').strip(): row for row in lfa1_data if row.get('EDI Delivery', '').strip()}
+        makt_lookup = {row.get('Material', '').strip(): row for row in makt_data if row.get('Material', '').strip()}
 
-        # Process data
-        enriched_data = process_edi_documents(edi_header, edi_items, kna1_lookup, lfa1_lookup, makt_lookup)
+        # Filter headers by date and errors BEFORE processing (same as get_edi_data)
+        cutoff_date = datetime.now() - timedelta(days=7)
+        filtered_headers = []
+
+        for header in edi_header:
+            # Only include records with errors (non-empty error code)
+            error_code = header.get('Error Code', '').strip()
+            if not error_code:
+                continue
+
+            # Filter by date if DN Processing Date exists
+            date_str = header.get('DN Processing Date', '').strip()
+            if date_str:
+                try:
+                    # Try parsing date (adjust format as needed)
+                    record_date = datetime.strptime(date_str, '%Y%m%d')
+                    if record_date < cutoff_date:
+                        continue
+                except:
+                    pass  # Include if date parsing fails
+
+            filtered_headers.append(header)
+
+        # Process filtered data
+        enriched_data = process_edi_documents(filtered_headers, edi_items, kna1_lookup, lfa1_lookup, makt_lookup)
 
         # Calculate statistics
         total_documents = len(enriched_data)
