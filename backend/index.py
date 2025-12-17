@@ -18,12 +18,20 @@ ERROR_CODES = {
 def lambda_handler(event, context):
     """Main Lambda handler"""
     try:
-        # Parse request
-        http_method = event.get('httpMethod', 'GET')
-        path = event.get('path', '')
+        # Parse request - support both API Gateway V1 and V2 formats
+        # V2 (HTTP API) format
+        if 'requestContext' in event and 'http' in event['requestContext']:
+            http_method = event['requestContext']['http']['method']
+            path = event['rawPath']
+        # V1 (REST API) format
+        else:
+            http_method = event.get('httpMethod', 'GET')
+            path = event.get('path', '')
+
         query_params = event.get('queryStringParameters') or {}
 
         print(f"Processing request: {http_method} {path}")
+        print(f"Event: {json.dumps(event)}")  # Debug logging
 
         # Route requests
         if path == '/api/edi-data' or path.startswith('/api/edi-data'):
@@ -42,7 +50,7 @@ def lambda_handler(event, context):
             return {
                 'statusCode': 404,
                 'headers': get_cors_headers(),
-                'body': json.dumps({'error': 'Not found', 'path': path})
+                'body': json.dumps({'error': 'Not found', 'path': path, 'method': http_method})
             }
     except Exception as e:
         print(f"Error: {str(e)}")
