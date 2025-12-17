@@ -42,17 +42,25 @@ sap.ui.define([
          * @private
          */
         _getAPIEndpoint: function () {
-            // In production, this would be configured via environment variable or config file
-            // For now, check if running locally or deployed
-            const hostname = window.location.hostname;
+            // API endpoint injected during deployment
+            // This line will be replaced by the deployment script
+            return "https://your-api-id.execute-api.eu-west-1.amazonaws.com/dev";
+        },
 
-            if (hostname === "localhost" || hostname === "127.0.0.1") {
-                // Local development - use placeholder or local API Gateway URL
-                return "https://your-api-id.execute-api.region.amazonaws.com/dev";
-            } else {
-                // Production - API endpoint should be in same domain or configured
-                return window.location.origin;
+        /**
+         * Get content density class
+         * @public
+         * @returns {string} CSS class for content density
+         */
+        getContentDensityClass: function () {
+            if (!this._sContentDensityClass) {
+                if (!Device.support.touch) {
+                    this._sContentDensityClass = "sapUiSizeCompact";
+                } else {
+                    this._sContentDensityClass = "sapUiSizeCozy";
+                }
             }
+            return this._sContentDensityClass;
         }
     });
 });
