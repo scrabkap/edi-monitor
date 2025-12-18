@@ -1,0 +1,36 @@
+@AbapCatalog.sqlViewName: 'ZEDICITEM'
+@AbapCatalog.compiler.compareFilter: true
+@AbapCatalog.preserveKey: true
+@AccessControl.authorizationCheck: #CHECK
+@EndUserText.label: 'EDI Item - Consumption View'
+@Metadata.allowExtensions: true
+@VDM.viewType: #CONSUMPTION
+
+@OData.publish: true
+
+define view ZEDI_C_ITEM
+  as select from ZEDI_I_ITEM
+
+{
+  key DocumentNumber,
+  key ItemNumber,
+
+      // Material Information
+      Barcode,
+      MaterialDescription,
+
+      // Quantities
+      Quantity,
+      Weight,
+
+      // Error Information
+      ErrorCode,
+      ErrorDescription,
+      Severity,
+
+      // Additional Fields
+      ExpirationDate,
+      OrderNumber,
+      PurchaseOrder,
+      PoItem
+}

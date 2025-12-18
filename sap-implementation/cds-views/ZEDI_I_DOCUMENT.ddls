@@ -1,0 +1,68 @@
+@AbapCatalog.sqlViewName: 'ZEDIIDOC'
+@AbapCatalog.compiler.compareFilter: true
+@AbapCatalog.preserveKey: true
+@AccessControl.authorizationCheck: #CHECK
+@EndUserText.label: 'EDI Document - Interface View'
+
+define view ZEDI_I_DOCUMENT
+  as select from ylo_snxt_edi_h as Header
+
+  association [0..1] to lfa1  as _Vendor   on $projection.EdiDelivery = _Vendor.lifnr
+  association [0..1] to kna1  as _Customer on $projection.EdiStoreNumber = _Customer.kunnr
+  association [0..*] to ZEDI_I_ITEM as _Items on $projection.DocumentNumber = _Items.DocumentNumber
+
+{
+  key ltrim(Header.v_edi, '0')  as DocumentNumber,
+
+      // Header Information
+      ltrim(Header.w_edi, '0')  as EdiDelivery,
+      ltrim(Header.sendr, '0')  as EdiStoreNumber,
+      Header.refrc              as ReferenceCode,
+      Header.dnfnm              as FileName,
+      Header.dndat              as ProcessingDate,
+      Header.dntim              as ProcessingTime,
+      Header.dnidc              as NotificationId,
+
+      // Error Information
+      ltrim(Header.errcd, '0')  as ErrorCode,
+      case ltrim(Header.errcd, '0')
+        when '28'  then 'General error - entire document failed'
+        when '104' then 'Item is not listed in store assortment'
+        when '114' then 'Item wasn''t ordered'
+        else ''
+      end                       as ErrorDescription,
+
+      // SAP Document References
+      Header.vbeln              as SalesDocument,
+      Header.mblnr              as MaterialDocument,
+      Header.mjahr              as MaterialDocumentYear,
+      Header.lifnr              as VendorNumber,
+
+      // Timestamp (ISO 8601 format)
+      concat_with_space(
+        concat(
+          concat(
+            concat(substring(Header.dndat, 1, 4), '-'),
+            concat(substring(Header.dndat, 5, 2), '-')
+          ),
+          concat(substring(Header.dndat, 7, 2), 'T')
+        ),
+        concat(
+          concat(
+            concat(substring(Header.dntim, 1, 2), ':'),
+            concat(substring(Header.dntim, 3, 2), ':')
+          ),
+          concat(substring(Header.dntim, 5, 2), 'Z')
+        ),
+        0
+      )                         as Timestamp,
+
+      // Master Data (via associations)
+      _Vendor.name1             as VendorName,
+      _Customer.name1           as StoreName,
+
+      // Associations
+      _Vendor,
+      _Customer,
+      _Items
+}

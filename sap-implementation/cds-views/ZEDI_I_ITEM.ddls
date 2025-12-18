@@ -1,0 +1,50 @@
+@AbapCatalog.sqlViewName: 'ZEDIITEM'
+@AbapCatalog.compiler.compareFilter: true
+@AbapCatalog.preserveKey: true
+@AccessControl.authorizationCheck: #CHECK
+@EndUserText.label: 'EDI Item - Interface View'
+
+define view ZEDI_I_ITEM
+  as select from ylo_snxt_edi_i as Item
+
+  association [0..1] to makt as _Material on  $projection.Barcode = _Material.matnr
+                                          and _Material.spras       = $session.system_language
+
+{
+  key ltrim(Item.v_edi, '0')    as DocumentNumber,
+  key Item.refln                as ItemNumber,
+
+      // Material Information
+      ltrim(Item.barcd, '0')    as Barcode,
+      _Material.maktx           as MaterialDescription,
+
+      // Quantities
+      Item.pcqty                as Quantity,
+      Item.wight                as Weight,
+
+      // Error Information
+      ltrim(Item.errcd, '0')    as ErrorCode,
+      case ltrim(Item.errcd, '0')
+        when '104' then 'Item is not listed in store assortment'
+        when '114' then 'Item wasn''t ordered'
+        else ''
+      end                       as ErrorDescription,
+
+      // Severity Calculation
+      case ltrim(Item.errcd, '0')
+        when '104' then 'Error'
+        when '114' then 'Warning'
+        else 'Success'
+      end                       as Severity,
+
+      // Additional Fields
+      Item.expdt                as ExpirationDate,
+      Item.ordnm                as OrderNumber,
+      Item.ebeln                as PurchaseOrder,
+      Item.ebelp                as PoItem,
+      Item.eindt                as DeliveryDate,
+      Item.anzpu                as NumberOfPackages,
+
+      // Associations
+      _Material
+}

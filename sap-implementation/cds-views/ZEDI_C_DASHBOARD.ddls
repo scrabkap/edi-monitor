@@ -1,0 +1,51 @@
+@AbapCatalog.sqlViewName: 'ZEDICDASH'
+@AbapCatalog.compiler.compareFilter: true
+@AbapCatalog.preserveKey: true
+@AccessControl.authorizationCheck: #CHECK
+@EndUserText.label: 'EDI Dashboard KPIs - Consumption View'
+@VDM.viewType: #CONSUMPTION
+
+@OData.publish: true
+
+define view ZEDI_C_DASHBOARD
+  as select from ZEDI_C_DOCUMENT
+
+{
+  key 'MAIN'                    as Id,
+
+      // Total counts
+      count(*)                  as TotalDocuments,
+
+      // Count by severity
+      sum(
+        case Severity
+          when 'Error' then 1
+          else 0
+        end
+      )                         as ErrorDocuments,
+
+      sum(
+        case Severity
+          when 'Warning' then 1
+          else 0
+        end
+      )                         as WarningDocuments,
+
+      sum(
+        case Severity
+          when 'Success' then 1
+          else 0
+        end
+      )                         as SuccessDocuments,
+
+      // Total items across all documents
+      sum(ItemCount)            as TotalItems,
+
+      // Total error items (only code 104, not warnings)
+      sum(ErrorCount)           as ErrorItems,
+
+      // Current timestamp
+      cast(tstmp_current_utctimestamp() as abap.dec(21,7)) as LastUpdate
+}
+group by
+  '1'  // Dummy grouping to get single row

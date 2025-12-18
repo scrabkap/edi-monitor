@@ -1,0 +1,83 @@
+@AbapCatalog.sqlViewName: 'ZEDICDOC'
+@AbapCatalog.compiler.compareFilter: true
+@AbapCatalog.preserveKey: true
+@AccessControl.authorizationCheck: #CHECK
+@EndUserText.label: 'EDI Document - Consumption View'
+@Metadata.allowExtensions: true
+@VDM.viewType: #CONSUMPTION
+
+@OData.publish: true
+
+define view ZEDI_C_DOCUMENT
+  as select from ZEDI_I_DOCUMENT as Document
+
+  association [0..*] to ZEDI_C_ITEM as _Items on $projection.DocumentNumber = _Items.DocumentNumber
+
+{
+  key Document.DocumentNumber,
+
+      // Header Information
+      Document.EdiDelivery,
+      Document.EdiStoreNumber,
+      Document.ProcessingDate,
+      Document.ProcessingTime,
+      Document.Timestamp,
+
+      // Master Data
+      Document.VendorName,
+      Document.StoreName,
+
+      // Error Information
+      Document.ErrorCode,
+      Document.ErrorDescription,
+
+      // Severity Calculation (considering header and items)
+      case
+        // Header error 28 = Error
+        when Document.ErrorCode = '28' then 'Error'
+        // If any item has error code 104 = Error
+        when exists ( select 1 from ZEDI_I_ITEM as SubItem
+                      where SubItem.DocumentNumber = Document.DocumentNumber
+                        and SubItem.ErrorCode = '104' )
+          then 'Error'
+        // If any item has error code 114 = Warning
+        when exists ( select 1 from ZEDI_I_ITEM as SubItem
+                      where SubItem.DocumentNumber = Document.DocumentNumber
+                        and SubItem.ErrorCode = '114' )
+          then 'Warning'
+        // No errors or warnings = Success
+        else 'Success'
+      end                       as Severity,
+
+      // Item Count
+      (
+        select count(*)
+        from ZEDI_I_ITEM as SubItem
+        where SubItem.DocumentNumber = Document.DocumentNumber
+      )                         as ItemCount,
+
+      // Error Count (only error code 104, NOT warnings 114)
+      case Document.ErrorCode
+        // Header error 28: count all items
+        when '28' then (
+          select count(*)
+          from ZEDI_I_ITEM as SubItem
+          where SubItem.DocumentNumber = Document.DocumentNumber
+        )
+        // Otherwise: count only items with error code 104
+        else (
+          select count(*)
+          from ZEDI_I_ITEM as SubItem
+          where SubItem.DocumentNumber = Document.DocumentNumber
+            and SubItem.ErrorCode = '104'
+        )
+      end                       as ErrorCount,
+
+      // SAP Document References
+      Document.SalesDocument,
+      Document.MaterialDocument,
+      Document.MaterialDocumentYear,
+
+      // Associations
+      _Items
+}
